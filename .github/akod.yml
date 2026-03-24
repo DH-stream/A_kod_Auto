@@ -1,0 +1,51 @@
+name: A-kod automation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"
+
+jobs:
+  run-akod:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cache Playwright
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run script
+        env:
+          USERNAME: ${{ secrets.AKOD_USERNAME }}
+          PASSWORD: ${{ secrets.AKOD_PASSWORD }}
+          HEADLESS: "true"
+          QUEUE_FILE: "./queue.json"
+          RESULT_FILE: "./results.json"
+        run: node script.js
+
+      - name: Show results
+        run: cat results.json
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: akod-results
+          path: results.json
