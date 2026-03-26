@@ -1,0 +1,29 @@
+[
+  {
+    "id": 1,
+    "tank": "Test",
+    "ref": "Test",
+    "success": false,
+    "status": "Ogiltig input",
+    "aKod": null,
+    "message": "Tank eller Ref blev tom efter rensning"
+  },
+  {
+    "id": 2,
+    "tank": "DHIU 244133-7",
+    "ref": "74458013/2",
+    "success": false,
+    "status": "Popup/fel",
+    "aKod": null,
+    "message": "Warning!\nUnit is not yet ready for pick-up - Authorisation code will be sent to above contact details when ready"
+  },
+  {
+    "id": 3,
+    "tank": "DHIU2150157",
+    "ref": "74412050/3",
+    "success": false,
+    "status": "Tekniskt fel",
+    "aKod": null,
+    "message": "Object reference not set to an instance of an object"
+  }
+]
