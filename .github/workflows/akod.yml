@@ -1,5 +1,8 @@
 name: A-kod automation
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   repository_dispatch:
@@ -55,6 +58,18 @@ jobs:
 
       - name: Show results
         run: cat results.json
+
+      - name: Commit results.json to repo
+        run: |
+          mkdir -p data/results/latest
+          cp results.json data/results/latest/results.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add data/results/latest/results.json
+          git commit -m "Update results.json" || echo "No changes to commit"
+          git push
 
       - name: Upload results
         uses: actions/upload-artifact@v4
