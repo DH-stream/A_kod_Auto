@@ -22,15 +22,25 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: playwright-${{ runner.os }}
           restore-keys: |
-            playwright-${{ runner.os }}-
+            playwright-${{ runner.os }}
 
       - name: Install dependencies
         run: npm install
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
+
+      - name: Download queue.json from Google Drive
+        run: |
+          curl -L "https://drive.google.com/uc?export=download&id=1GThI2ZzK1uxCo7ZwbOe-TDQclFk-TofP" -o queue.json
+
+      - name: Show queue
+        run: cat queue.json
+
+      - name: Validate queue.json
+        run: node -e "JSON.parse(require('fs').readFileSync('queue.json','utf8')); console.log('queue.json is valid JSON')"
 
       - name: Run script
         env:
