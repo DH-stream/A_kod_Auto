@@ -34,6 +34,19 @@ async function fillForm(page, tank, ref) {
   await page.fill('#MainContent_txtReleaseNo', ref);
 }
 
+function makeResult(item, overrides = {}) {
+  return {
+    id: item?.input?.id ?? item?.id ?? null,
+    tank: item?.input?.tank ?? item?.tank ?? null,
+    ref: item?.input?.ref ?? item?.ref ?? null,
+    success: false,
+    status: 'Okänt fel',
+    aKod: null,
+    message: '',
+    ...overrides
+  };
+}
+
 (async () => {
   const USERNAME = process.env.USERNAME;
   const PASSWORD = process.env.PASSWORD;
@@ -57,6 +70,7 @@ async function fillForm(page, tank, ref) {
       return {
         index,
         input: item,
+        id: item?.id ?? null,
         valid: false,
         result: {
           success: false,
@@ -70,6 +84,7 @@ async function fillForm(page, tank, ref) {
     return {
       index,
       input: item,
+      id: item?.id ?? null,
       valid: true,
       tank,
       ref
@@ -80,14 +95,14 @@ async function fillForm(page, tank, ref) {
 
   for (const item of queue) {
     if (!item.valid) {
-      results.push({
-        tank: item.input?.tank ?? null,
-        ref: item.input?.ref ?? null,
-        success: item.result.success,
-        status: item.result.status,
-        aKod: item.result.aKod,
-        message: item.result.message
-      });
+      results.push(
+        makeResult(item, {
+          success: item.result.success,
+          status: item.result.status,
+          aKod: item.result.aKod,
+          message: item.result.message
+        })
+      );
     }
   }
 
@@ -113,7 +128,11 @@ async function fillForm(page, tank, ref) {
       const REF = item.ref;
 
       console.log('\n--- NY RAD ---');
-      console.log({ TANK, REF });
+      console.log({
+        id: item.id,
+        TANK,
+        REF
+      });
 
       await page.locator('#MainContent_txtUnitID').waitFor({ state: 'visible' });
       await page.locator('#MainContent_txtReleaseNo').waitFor({ state: 'visible' });
@@ -129,14 +148,12 @@ async function fillForm(page, tank, ref) {
       if (authMatch) {
         const aKod = authMatch[1];
 
-        const result = {
-          tank: item.input.tank,
-          ref: item.input.ref,
+        const result = makeResult(item, {
           success: true,
           status: 'Klar',
           aKod,
           message: 'A-kod hittad'
-        };
+        });
 
         console.log(result);
         results.push(result);
@@ -167,14 +184,12 @@ async function fillForm(page, tank, ref) {
 
         await okButton.click();
 
-        const result = {
-          tank: item.input.tank,
-          ref: item.input.ref,
+        const result = makeResult(item, {
           success: false,
           status: 'Popup/fel',
           aKod: null,
           message: warningText || 'Warning-popup visades'
-        };
+        });
 
         console.log(result);
         results.push(result);
@@ -182,28 +197,24 @@ async function fillForm(page, tank, ref) {
       }
 
       if (/Object reference not set to an instance of an object/i.test(bodyText)) {
-        const result = {
-          tank: item.input.tank,
-          ref: item.input.ref,
+        const result = makeResult(item, {
           success: false,
           status: 'Tekniskt fel',
           aKod: null,
           message: 'Object reference not set to an instance of an object'
-        };
+        });
 
         console.log(result);
         results.push(result);
         continue;
       }
 
-      const result = {
-        tank: item.input.tank,
-        ref: item.input.ref,
+      const result = makeResult(item, {
         success: false,
         status: 'Okänt eller vänteläge',
         aKod: null,
         message: 'Ingen A-kod, popup eller känt tekniskt fel upptäcktes'
-      };
+      });
 
       console.log(result);
       results.push(result);
