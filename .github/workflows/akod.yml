@@ -34,9 +34,29 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Download queue.json from Google Drive
+      - name: Get Dropbox access token
+        id: dropbox-token
+        shell: bash
         run: |
-          curl -L "https://drive.google.com/uc?export=download&id=1GThI2ZzK1uxCo7ZwbOe-TDQclFk-TofP" -o queue.json
+          RESPONSE=$(curl -s https://api.dropbox.com/oauth2/token \
+            -d grant_type=refresh_token \
+            -d refresh_token="${{ secrets.DROPBOX_REFRESH_TOKEN }}" \
+            -d client_id="${{ secrets.DROPBOX_APP_KEY }}" \
+            -d client_secret="${{ secrets.DROPBOX_APP_SECRET }}")
+
+          echo "Dropbox token response:"
+          echo "$RESPONSE"
+
+          ACCESS_TOKEN=$(echo "$RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+          echo "access_token=$ACCESS_TOKEN" >> $GITHUB_OUTPUT
+
+      - name: Download queue.json from Dropbox
+        shell: bash
+        run: |
+          curl -X POST https://content.dropboxapi.com/2/files/download \
+            --header "Authorization: Bearer ${{ steps.dropbox-token.outputs.access_token }}" \
+            --header "Dropbox-API-Arg: {\"path\":\"/queue/queue.json\"}" \
+            -o queue.json
 
       - name: Show queue
         run: cat queue.json
@@ -55,22 +75,6 @@ jobs:
 
       - name: Show results
         run: cat results.json
-
-      - name: Get Dropbox access token from refresh token
-        id: dropbox-token
-        shell: bash
-        run: |
-          RESPONSE=$(curl -s https://api.dropbox.com/oauth2/token \
-            -d grant_type=refresh_token \
-            -d refresh_token="${{ secrets.DROPBOX_REFRESH_TOKEN }}" \
-            -d client_id="${{ secrets.DROPBOX_APP_KEY }}" \
-            -d client_secret="${{ secrets.DROPBOX_APP_SECRET }}")
-
-          echo "Dropbox token response:"
-          echo "$RESPONSE"
-
-          ACCESS_TOKEN=$(echo "$RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
-          echo "access_token=$ACCESS_TOKEN" >> $GITHUB_OUTPUT
 
       - name: Upload results.json to Dropbox
         shell: bash
