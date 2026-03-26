@@ -2,6 +2,8 @@ name: A-kod automation
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types: [run-akod]
   schedule:
     - cron: "0 * * * *"
 
