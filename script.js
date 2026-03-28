@@ -106,7 +106,7 @@ function makeResult(item, overrides = {}) {
     }
   }
 
-  const validQueue = queue.filter(x => x.valid);
+  const validQueue = queue.filter((x) => x.valid);
 
   const browser = await chromium.launch({
     headless: HEADLESS
@@ -134,8 +134,11 @@ function makeResult(item, overrides = {}) {
         REF
       });
 
-      await page.locator('#MainContent_txtUnitID').waitFor({ state: 'visible' });
-      await page.locator('#MainContent_txtReleaseNo').waitFor({ state: 'visible' });
+      const unitInput = page.locator('#MainContent_txtUnitID');
+      const refInput = page.locator('#MainContent_txtReleaseNo');
+
+      await unitInput.waitFor({ state: 'visible' });
+      await refInput.waitFor({ state: 'visible' });
 
       await fillForm(page, TANK, REF);
 
@@ -163,17 +166,24 @@ function makeResult(item, overrides = {}) {
         try {
           await continueButton.waitFor({ state: 'visible', timeout: 4000 });
           await continueButton.click();
-          await page.locator('#MainContent_txtUnitID').waitFor({ state: 'visible' });
+          await unitInput.waitFor({ state: 'visible', timeout: 5000 });
+          await refInput.waitFor({ state: 'visible', timeout: 5000 });
         } catch {
           console.warn('Continue-knappen hittades inte efter success. Försöker återställa formuläret manuellt.');
 
-          await page.goto('https://eservices.alvsborgroro.com/Login.aspx');
-          await page.waitForLoadState('networkidle');
- 
+          await page.goto('https://eservices.alvsborgroro.com/Login.aspx', {
+            waitUntil: 'domcontentloaded'
+          });
+          await page.waitForLoadState('networkidle').catch(() => {});
+
           const addNewButton = page.getByRole('button', { name: 'AddNew' });
-          await addNewButton.waitFor({ state: 'visible', timeout: 5000 });
-          await addNewButton.click();
-          await page.locator('#MainContent_txtUnitID').waitFor({ state: 'visible' });
+
+          if (await addNewButton.isVisible().catch(() => false)) {
+            await addNewButton.click();
+          }
+
+          await unitInput.waitFor({ state: 'visible', timeout: 10000 });
+          await refInput.waitFor({ state: 'visible', timeout: 10000 });
         }
 
         continue;
@@ -238,8 +248,8 @@ function makeResult(item, overrides = {}) {
 
     const summary = {
       total: results.length,
-      success: results.filter(r => r.success).length,
-      failed: results.filter(r => !r.success).length
+      success: results.filter((r) => r.success).length,
+      failed: results.filter((r) => !r.success).length
     };
 
     console.log(summary);
