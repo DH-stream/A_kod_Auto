@@ -140,7 +140,9 @@ function renderList() {
       const isOpen = openCardId === item.id;
       const isActive = item.status === 'active' && item.a_kod;
       const isUsed = item.status === 'used';
-      const notifyEnabled = notifySet.has(item.tank);
+      const email = (localStorage.getItem('notify_email') || '').trim().toLowerCase();
+      const notifyKey = `${item.tank}__${item.ref}__${email}`;
+      const notifyEnabled = email ? notifySet.has(notifyKey) : false;
 
       const statusLabel = isUsed
         ? 'Used'
@@ -177,12 +179,11 @@ function renderList() {
                 ${metaHtml}
 
                 <div class="card-actions">
-                  ${
-                    isUsed
-                      ? ''
-                      : isActive
-                        ? `<button class="btn btn-used" type="button" data-action="used" data-id="${item.id}">Mark as used</button>`
-                        : `
+                  ${isUsed
+          ? ''
+          : isActive
+            ? `<button class="btn btn-used" type="button" data-action="used" data-id="${item.id}">Mark as used</button>`
+            : `
                           <button
                             class="btn btn-notify ${notifyEnabled ? 'is-active' : ''}"
                             type="button"
@@ -194,7 +195,7 @@ function renderList() {
                             ${notifyEnabled ? 'Notification enabled' : 'Notify me'}
                           </button>
                         `
-                  }
+        }
                 </div>
               </div>
             </div>
@@ -256,17 +257,31 @@ function bindCardEvents() {
 }
 
 async function toggleNotification(tank, ref) {
-  const result = await toggleNotifyViaFunction(tank, ref);
+  let email = localStorage.getItem('notify_email') || '';
+
+  if (!email) {
+    email = window.prompt('Enter your email for notifications:') || '';
+    email = email.trim().toLowerCase();
+
+    if (!email) {
+      return;
+    }
+
+    localStorage.setItem('notify_email', email);
+  }
+
+  const result = await toggleNotifyViaFunction(tank, ref, email);
 
   if (!result) {
     console.error('Could not toggle notification via Edge Function');
     return;
   }
 
+  const key = `${tank}__${ref}__${email}`;
   if (result.enabled) {
-    notifySet.add(tank);
+    notifySet.add(key);
   } else {
-    notifySet.delete(tank);
+    notifySet.delete(key);
   }
 }
 
@@ -401,7 +416,7 @@ async function markUsedViaFunction(id) {
   }
 }
 
-async function toggleNotifyViaFunction(tank, ref) {
+async function toggleNotifyViaFunction(tank, ref, email) {
   if (!appAccessCode) {
     return null;
   }
@@ -418,19 +433,16 @@ async function toggleNotifyViaFunction(tank, ref) {
           code: appAccessCode,
           tank,
           ref,
+          email,
         }),
       }
     );
-
-    const text = await response.text();
-    console.log('toggle-notify status:', response.status);
-    console.log('toggle-notify raw response:', text);
 
     if (!response.ok) {
       return null;
     }
 
-    const data = JSON.parse(text);
+    const data = await response.json();
     if (data?.ok !== true || typeof data.enabled !== 'boolean') {
       return null;
     }
