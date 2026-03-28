@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A-code Finder</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="appGate" class="app-gate hidden"></div>
+
+  <div class="app-shell">
+    <div id="appRoot" class="app app-hidden">
+      <header class="top">
+        <h1>A-code Finder</h1>
+      </header>
+
+      <nav class="tabs">
+        <button id="activeTabBtn" class="tab-btn is-active" type="button">Active</button>
+        <button id="archiveTabBtn" class="tab-btn" type="button">Archive</button>
+      </nav>
+
+      <section class="search-wrap">
+        <input
+          id="searchInput"
+          class="search-input"
+          type="text"
+          placeholder="Search tank number or pickup ref"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </section>
+
+      <main id="list" class="list"></main>
+    </div>
+  </div>
+
+  <div id="appAccessModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card">
+      <h2>Access required</h2>
+      <p>Enter access code to open the app.</p>
+      <div class="modal-field">
+        <input
+          id="appCodeInput"
+          class="modal-input"
+          type="password"
+          placeholder="Access code"
+          autocomplete="off"
+        />
+      </div>
+      <div id="appAccessError" class="modal-error hidden">Invalid access code</div>
+      <div class="modal-actions">
+        <button id="appUnlockBtn" class="btn btn-danger" type="button">Unlock</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="confirmModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card">
+      <h2>Confirm action</h2>
+      <p>Mark this unit as used and move it to the archive?</p>
+      <div id="modalUnitInfo" class="modal-unit-info"></div>
+      <div class="modal-actions">
+        <button id="cancelBtn" class="btn btn-secondary" type="button">Cancel</button>
+        <button id="confirmBtn" class="btn btn-danger" type="button">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="archiveAccessModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card">
+      <h2>Archive access</h2>
+      <p>Enter access code to open the archive.</p>
+      <div class="modal-field">
+        <input
+          id="archiveCodeInput"
+          class="modal-input"
+          type="password"
+          placeholder="Access code"
+          autocomplete="off"
+        />
+      </div>
+      <div id="archiveAccessError" class="modal-error hidden">Invalid access code</div>
+      <div class="modal-actions">
+        <button id="archiveCancelBtn" class="btn btn-secondary" type="button">Cancel</button>
+        <button id="archiveUnlockBtn" class="btn btn-danger" type="button">Unlock</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
