@@ -159,11 +159,21 @@ function makeResult(item, overrides = {}) {
         results.push(result);
 
         const continueButton = page.locator('#MainContent_btnAddNewAuthorisation');
-        if (await continueButton.isVisible().catch(() => false)) {
+
+        try {
+          await continueButton.waitFor({ state: 'visible', timeout: 4000 });
           await continueButton.click();
           await page.locator('#MainContent_txtUnitID').waitFor({ state: 'visible' });
-        } else {
-          throw new Error('A-kod hittades men Continue-knappen hittades inte');
+        } catch {
+          console.warn('Continue-knappen hittades inte efter success. Försöker återställa formuläret manuellt.');
+
+          await page.goto('https://eservices.alvsborgroro.com/Login.aspx');
+          await page.waitForLoadState('networkidle');
+ 
+          const addNewButton = page.getByRole('button', { name: 'AddNew' });
+          await addNewButton.waitFor({ state: 'visible', timeout: 5000 });
+          await addNewButton.click();
+          await page.locator('#MainContent_txtUnitID').waitFor({ state: 'visible' });
         }
 
         continue;
