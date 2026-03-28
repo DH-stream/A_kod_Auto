@@ -47,6 +47,42 @@ function makeResult(item, overrides = {}) {
   };
 }
 
+async function ensureAuthorisationForm(page, username, password) {
+  const unitInput = page.locator('#MainContent_txtUnitID');
+  const refInput = page.locator('#MainContent_txtReleaseNo');
+
+  if (
+    await unitInput.isVisible().catch(() => false) &&
+    await refInput.isVisible().catch(() => false)
+  ) {
+    return;
+  }
+
+  await page.goto('https://eservices.alvsborgroro.com/Login.aspx', {
+    waitUntil: 'domcontentloaded'
+  });
+  await page.waitForLoadState('networkidle').catch(() => {});
+
+  const usernameInput = page.locator('#MainContent_txtUserName');
+  const passwordInput = page.locator('#MainContent_txtPassword');
+
+  if (await usernameInput.isVisible().catch(() => false)) {
+    await usernameInput.fill(username);
+    await passwordInput.fill(password);
+    await page.getByRole('button', { name: 'Login' }).click();
+    await page.waitForLoadState('networkidle').catch(() => {});
+  }
+
+  const addNewButton = page.getByRole('button', { name: 'AddNew' });
+
+  if (await addNewButton.isVisible().catch(() => false)) {
+    await addNewButton.click();
+  }
+
+  await unitInput.waitFor({ state: 'visible', timeout: 15000 });
+  await refInput.waitFor({ state: 'visible', timeout: 15000 });
+}
+
 (async () => {
   const USERNAME = process.env.USERNAME;
   const PASSWORD = process.env.PASSWORD;
@@ -115,13 +151,7 @@ function makeResult(item, overrides = {}) {
   const page = await browser.newPage();
 
   try {
-    await page.goto('https://eservices.alvsborgroro.com/Login.aspx');
-    await page.fill('#MainContent_txtUserName', USERNAME);
-    await page.fill('#MainContent_txtPassword', PASSWORD);
-    await page.getByRole('button', { name: 'Login' }).click();
-
-    await page.waitForLoadState('networkidle');
-    await page.getByRole('button', { name: 'AddNew' }).click();
+    await ensureAuthorisationForm(page, USERNAME, PASSWORD);
 
     for (const item of validQueue) {
       const TANK = item.tank;
@@ -163,27 +193,13 @@ function makeResult(item, overrides = {}) {
 
         const continueButton = page.locator('#MainContent_btnAddNewAuthorisation');
 
-        try {
-          await continueButton.waitFor({ state: 'visible', timeout: 4000 });
+        if (await continueButton.isVisible().catch(() => false)) {
           await continueButton.click();
           await unitInput.waitFor({ state: 'visible', timeout: 5000 });
           await refInput.waitFor({ state: 'visible', timeout: 5000 });
-        } catch {
-          console.warn('Continue-knappen hittades inte efter success. Försöker återställa formuläret manuellt.');
-
-          await page.goto('https://eservices.alvsborgroro.com/Login.aspx', {
-            waitUntil: 'domcontentloaded'
-          });
-          await page.waitForLoadState('networkidle').catch(() => {});
-
-          const addNewButton = page.getByRole('button', { name: 'AddNew' });
-
-          if (await addNewButton.isVisible().catch(() => false)) {
-            await addNewButton.click();
-          }
-
-          await unitInput.waitFor({ state: 'visible', timeout: 10000 });
-          await refInput.waitFor({ state: 'visible', timeout: 10000 });
+        } else {
+          console.warn('Continue-knappen hittades inte efter success. Återställer formuläret manuellt.');
+          await ensureAuthorisationForm(page, USERNAME, PASSWORD);
         }
 
         continue;
@@ -213,6 +229,8 @@ function makeResult(item, overrides = {}) {
 
         console.log(result);
         results.push(result);
+
+        await ensureAuthorisationForm(page, USERNAME, PASSWORD);
         continue;
       }
 
@@ -226,6 +244,8 @@ function makeResult(item, overrides = {}) {
 
         console.log(result);
         results.push(result);
+
+        await ensureAuthorisationForm(page, USERNAME, PASSWORD);
         continue;
       }
 
@@ -238,6 +258,8 @@ function makeResult(item, overrides = {}) {
 
       console.log(result);
       results.push(result);
+
+      await ensureAuthorisationForm(page, USERNAME, PASSWORD);
     }
 
     const outputPath = process.env.RESULT_FILE || './results.json';
