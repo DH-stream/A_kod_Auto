@@ -83,6 +83,16 @@ jobs:
             --header "Content-Type: application/octet-stream" \
             --data-binary @results.json
 
+      - name: Sync results to Supabase
+        shell: bash
+        run: |
+          jq -c --arg token "${{ secrets.SUPABASE_SYNC_TOKEN }}" \
+            '{ token: $token, items: . }' results.json > sync_payload.json
+
+          curl -X POST https://sqqbujdebygfbcpztmri.supabase.co/functions/v1/sync-units \
+            --header "Content-Type: application/json" \
+            --data @sync_payload.json
+
       - name: Upload results artifact
         uses: actions/upload-artifact@v4
         with:
