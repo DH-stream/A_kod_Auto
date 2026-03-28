@@ -4,8 +4,7 @@ on:
   workflow_dispatch:
   repository_dispatch:
     types: [run-akod]
-  schedule:
-    - cron: "0 * * * *"
+  
 
 jobs:
   run-akod:
