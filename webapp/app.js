@@ -30,6 +30,14 @@ const archiveAccessError = document.getElementById('archiveAccessError');
 const archiveCancelBtn = document.getElementById('archiveCancelBtn');
 const archiveUnlockBtn = document.getElementById('archiveUnlockBtn');
 
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsModal = document.getElementById('settingsModal');
+const settingsEmailInput = document.getElementById('settingsEmailInput');
+const settingsError = document.getElementById('settingsError');
+const settingsClearBtn = document.getElementById('settingsClearBtn');
+const settingsCancelBtn = document.getElementById('settingsCancelBtn');
+const settingsSaveBtn = document.getElementById('settingsSaveBtn');
+
 let allItems = [];
 let filteredItems = [];
 let pendingUseId = null;
@@ -58,6 +66,31 @@ function makeNotifyKey(tank, ref, email) {
 
 function getSavedNotifyEmail() {
   return (localStorage.getItem('notify_email') || '').trim().toLowerCase();
+}
+
+function setSavedNotifyEmail(email) {
+  localStorage.setItem('notify_email', String(email || '').trim().toLowerCase());
+}
+
+function clearSavedNotifyEmail() {
+  localStorage.removeItem('notify_email');
+  notifySet = new Set();
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
+}
+
+function openSettingsModal() {
+  settingsEmailInput.value = getSavedNotifyEmail();
+  settingsError.classList.add('hidden');
+  openModal(settingsModal);
+  setTimeout(() => settingsEmailInput.focus(), 20);
+}
+
+function closeSettingsModal() {
+  settingsError.classList.add('hidden');
+  closeModal(settingsModal);
 }
 
 async function loadItems() {
@@ -209,9 +242,7 @@ function bindListEvents() {
     if (notifyBtn) {
       e.preventDefault();
       e.stopPropagation();
-
-      alert('notify click reached');
-      console.log('notify click reached', notifyBtn.dataset);
+      searchInput.blur();
 
       const tank = notifyBtn.dataset.tank;
       const ref = notifyBtn.dataset.ref;
@@ -260,21 +291,14 @@ async function toggleNotification(tank, ref) {
   let email = getSavedNotifyEmail();
 
   if (!email) {
-    email = window.prompt('Enter your email for notifications:') || '';
-    email = email.trim().toLowerCase();
-
-    if (!email) {
-      return;
-    }
-
-    localStorage.setItem('notify_email', email);
+    openSettingsModal();
+    return;
   }
 
   const result = await toggleNotifyViaFunction(tank, ref, email);
 
   if (!result) {
     console.error('Could not toggle notification via Edge Function');
-    alert('toggle-notify failed');
     return;
   }
 
@@ -301,6 +325,8 @@ async function verifyAppAccess(code) {
     );
 
     const text = await response.text();
+    console.log('verify-access status:', response.status);
+    console.log('verify-access raw response:', text);
 
     if (!response.ok) {
       return false;
@@ -328,6 +354,8 @@ async function verifyArchiveAccess(code) {
     );
 
     const text = await response.text();
+    console.log('verify-archive status:', response.status);
+    console.log('verify-archive raw response:', text);
 
     if (!response.ok) {
       return false;
@@ -355,6 +383,8 @@ async function fetchUnitsFromFunction(code) {
     );
 
     const text = await response.text();
+    console.log('get-units status:', response.status);
+    console.log('get-units raw response:', text);
 
     if (!response.ok) {
       return null;
@@ -393,6 +423,8 @@ async function markUsedViaFunction(id) {
     );
 
     const text = await response.text();
+    console.log('mark-used status:', response.status);
+    console.log('mark-used raw response:', text);
 
     if (!response.ok) {
       return null;
@@ -433,7 +465,8 @@ async function toggleNotifyViaFunction(tank, ref, email) {
     );
 
     const text = await response.text();
-    console.log('toggle-notify status:', response.status, text);
+    console.log('toggle-notify status:', response.status);
+    console.log('toggle-notify body:', text);
 
     if (!response.ok) {
       return null;
@@ -464,7 +497,8 @@ function closeModal(modalEl) {
   const anyModalOpen =
     !appAccessModal.classList.contains('hidden') ||
     !confirmModal.classList.contains('hidden') ||
-    !archiveAccessModal.classList.contains('hidden');
+    !archiveAccessModal.classList.contains('hidden') ||
+    !settingsModal.classList.contains('hidden');
 
   if (!anyModalOpen) {
     bodyEl.classList.remove('modal-open');
@@ -608,6 +642,55 @@ archiveAccessModal.addEventListener('click', (e) => {
   }
 });
 
+settingsBtn.addEventListener('click', () => {
+  searchInput.blur();
+  openSettingsModal();
+});
+
+settingsCancelBtn.addEventListener('click', () => {
+  closeSettingsModal();
+});
+
+settingsClearBtn.addEventListener('click', () => {
+  clearSavedNotifyEmail();
+  settingsEmailInput.value = '';
+  settingsError.classList.add('hidden');
+  closeSettingsModal();
+  renderList();
+});
+
+settingsSaveBtn.addEventListener('click', () => {
+  const email = settingsEmailInput.value.trim().toLowerCase();
+
+  if (!isValidEmail(email)) {
+    settingsError.classList.remove('hidden');
+    return;
+  }
+
+  setSavedNotifyEmail(email);
+  settingsError.classList.add('hidden');
+  closeSettingsModal();
+  renderList();
+});
+
+settingsEmailInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    settingsSaveBtn.click();
+  }
+});
+
+settingsModal.addEventListener('click', (e) => {
+  if (e.target === settingsModal) {
+    closeSettingsModal();
+  }
+});
+
+archiveAccessModal.addEventListener('click', (e) => {
+  if (e.target === archiveAccessModal) {
+    closeModal(archiveAccessModal);
+  }
+});
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (!confirmModal.classList.contains('hidden')) {
@@ -615,6 +698,8 @@ document.addEventListener('keydown', (e) => {
       closeModal(confirmModal);
     } else if (!archiveAccessModal.classList.contains('hidden')) {
       closeModal(archiveAccessModal);
+    } else if (!settingsModal.classList.contains('hidden')) {
+      closeSettingsModal();
     }
   }
 });
