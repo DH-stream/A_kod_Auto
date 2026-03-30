@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const supabaseUrl = 'https://sqqbujdebygfbcpztmri.supabase.co';
 const supabaseKey = 'sb_publishable_msK6DOpLi0E31YOGYDkrIw_AM8yxtQf';
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+createClient(supabaseUrl, supabaseKey);
 
 const bodyEl = document.body;
 const appRoot = document.getElementById('appRoot');
@@ -205,24 +205,25 @@ function renderList() {
 
 function bindListEvents() {
   listEl.addEventListener('click', async (e) => {
-    const toggleBtn = e.target.closest('[data-action="toggle"]');
-    if (toggleBtn) {
-      const id = toggleBtn.dataset.id;
-      const clickedCard = toggleBtn.closest('.card');
-      const currentlyOpenCard = listEl.querySelector('.card.open');
+    const notifyBtn = e.target.closest('[data-action="notify"]');
+    if (notifyBtn) {
+      e.preventDefault();
+      e.stopPropagation();
 
-      if (currentlyOpenCard && currentlyOpenCard !== clickedCard) {
-        currentlyOpenCard.classList.remove('open');
-      }
+      alert('notify click reached');
+      console.log('notify click reached', notifyBtn.dataset);
 
-      const willOpen = !clickedCard.classList.contains('open');
-      clickedCard.classList.toggle('open', willOpen);
-      openCardId = willOpen ? id : null;
+      const tank = notifyBtn.dataset.tank;
+      const ref = notifyBtn.dataset.ref;
+
+      await toggleNotification(tank, ref);
+      renderList();
       return;
     }
 
     const usedBtn = e.target.closest('[data-action="used"]');
     if (usedBtn) {
+      e.preventDefault();
       e.stopPropagation();
       searchInput.blur();
       pendingUseId = usedBtn.dataset.id;
@@ -238,17 +239,19 @@ function bindListEvents() {
       return;
     }
 
-    const notifyBtn = e.target.closest('[data-action="notify"]');
-    if (notifyBtn) {
-      e.stopPropagation();
-      e.preventDefault();
-      searchInput.blur();
+    const toggleBtn = e.target.closest('[data-action="toggle"]');
+    if (toggleBtn) {
+      const id = toggleBtn.dataset.id;
+      const clickedCard = toggleBtn.closest('.card');
+      const currentlyOpenCard = listEl.querySelector('.card.open');
 
-      const tank = notifyBtn.dataset.tank;
-      const ref = notifyBtn.dataset.ref;
+      if (currentlyOpenCard && currentlyOpenCard !== clickedCard) {
+        currentlyOpenCard.classList.remove('open');
+      }
 
-      await toggleNotification(tank, ref);
-      renderList();
+      const willOpen = !clickedCard.classList.contains('open');
+      clickedCard.classList.toggle('open', willOpen);
+      openCardId = willOpen ? id : null;
     }
   });
 }
@@ -271,6 +274,7 @@ async function toggleNotification(tank, ref) {
 
   if (!result) {
     console.error('Could not toggle notification via Edge Function');
+    alert('toggle-notify failed');
     return;
   }
 
@@ -297,8 +301,6 @@ async function verifyAppAccess(code) {
     );
 
     const text = await response.text();
-    console.log('verify-access status:', response.status);
-    console.log('verify-access raw response:', text);
 
     if (!response.ok) {
       return false;
@@ -326,8 +328,6 @@ async function verifyArchiveAccess(code) {
     );
 
     const text = await response.text();
-    console.log('verify-archive status:', response.status);
-    console.log('verify-archive raw response:', text);
 
     if (!response.ok) {
       return false;
@@ -355,8 +355,6 @@ async function fetchUnitsFromFunction(code) {
     );
 
     const text = await response.text();
-    console.log('get-units status:', response.status);
-    console.log('get-units raw response:', text);
 
     if (!response.ok) {
       return null;
@@ -395,8 +393,6 @@ async function markUsedViaFunction(id) {
     );
 
     const text = await response.text();
-    console.log('mark-used status:', response.status);
-    console.log('mark-used raw response:', text);
 
     if (!response.ok) {
       return null;
@@ -437,8 +433,7 @@ async function toggleNotifyViaFunction(tank, ref, email) {
     );
 
     const text = await response.text();
-    console.log('toggle-notify status:', response.status);
-    console.log('toggle-notify raw response:', text);
+    console.log('toggle-notify status:', response.status, text);
 
     if (!response.ok) {
       return null;
