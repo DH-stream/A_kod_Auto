@@ -201,15 +201,14 @@ function renderList() {
       `;
     })
     .join('');
-
-  bindCardEvents();
 }
 
-function bindCardEvents() {
-  document.querySelectorAll('[data-action="toggle"]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      const clickedCard = btn.closest('.card');
+function bindListEvents() {
+  listEl.addEventListener('click', async (e) => {
+    const toggleBtn = e.target.closest('[data-action="toggle"]');
+    if (toggleBtn) {
+      const id = toggleBtn.dataset.id;
+      const clickedCard = toggleBtn.closest('.card');
       const currentlyOpenCard = listEl.querySelector('.card.open');
 
       if (currentlyOpenCard && currentlyOpenCard !== clickedCard) {
@@ -219,16 +218,16 @@ function bindCardEvents() {
       const willOpen = !clickedCard.classList.contains('open');
       clickedCard.classList.toggle('open', willOpen);
       openCardId = willOpen ? id : null;
-    });
-  });
+      return;
+    }
 
-  document.querySelectorAll('[data-action="used"]').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
+    const usedBtn = e.target.closest('[data-action="used"]');
+    if (usedBtn) {
       e.stopPropagation();
       searchInput.blur();
-      pendingUseId = btn.dataset.id;
+      pendingUseId = usedBtn.dataset.id;
 
-      const item = allItems.find((x) => x.id === pendingUseId);
+      const item = allItems.find((x) => String(x.id) === String(pendingUseId));
 
       modalUnitInfo.innerHTML = `
         <strong>${escapeHtml(item?.tank || '')}</strong><br>
@@ -236,20 +235,21 @@ function bindCardEvents() {
       `;
 
       openModal(confirmModal);
-    });
-  });
+      return;
+    }
 
-  document.querySelectorAll('[data-action="notify"]').forEach((btn) => {
-    btn.addEventListener('click', async (e) => {
+    const notifyBtn = e.target.closest('[data-action="notify"]');
+    if (notifyBtn) {
       e.stopPropagation();
+      e.preventDefault();
       searchInput.blur();
 
-      const tank = btn.dataset.tank;
-      const ref = btn.dataset.ref;
+      const tank = notifyBtn.dataset.tank;
+      const ref = notifyBtn.dataset.ref;
 
       await toggleNotification(tank, ref);
       renderList();
-    });
+    }
   });
 }
 
@@ -625,6 +625,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 async function init() {
+  bindListEvents();
   lockAppUi();
 }
 
