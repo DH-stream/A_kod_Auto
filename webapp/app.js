@@ -60,30 +60,6 @@ function getSavedNotifyEmail() {
   return (localStorage.getItem('notify_email') || '').trim().toLowerCase();
 }
 
-async function loadNotifications() {
-  const email = getSavedNotifyEmail();
-
-  if (!email) {
-    notifySet = new Set();
-    return;
-  }
-
-  const { data, error } = await supabase
-    .from('tank_notifications')
-    .select('tank, ref, email')
-    .eq('email', email);
-
-  if (error) {
-    console.error('loadNotifications failed', error);
-    notifySet = new Set();
-    return;
-  }
-
-  notifySet = new Set(
-    (data || []).map((row) => makeNotifyKey(row.tank, row.ref, row.email))
-  );
-}
-
 async function loadItems() {
   if (!appAccessCode) {
     listEl.innerHTML = `<div class="empty">Access code required.</div>`;
@@ -298,7 +274,13 @@ async function toggleNotification(tank, ref) {
     return;
   }
 
-  await loadNotifications();
+  const key = makeNotifyKey(tank, ref, email);
+
+  if (result.enabled) {
+    notifySet.add(key);
+  } else {
+    notifySet.delete(key);
+  }
 }
 
 async function verifyAppAccess(code) {
@@ -572,7 +554,6 @@ appUnlockBtn.addEventListener('click', async () => {
   appAccessError.classList.add('hidden');
   appAccessCode = code;
   unlockAppUi();
-  await loadNotifications();
   await loadItems();
 });
 
