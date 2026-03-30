@@ -12,7 +12,10 @@
   <div class="app-shell">
     <div id="appRoot" class="app app-hidden">
       <header class="top">
-        <h1>A-code Finder</h1>
+        <div class="top-bar">
+          <h1>A-code Finder</h1>
+          <button id="settingsBtn" class="icon-btn" type="button" aria-label="Settings">Settings</button>
+        </div>
       </header>
 
       <nav class="tabs">
@@ -84,6 +87,30 @@
       <div class="modal-actions">
         <button id="archiveCancelBtn" class="btn btn-secondary" type="button">Cancel</button>
         <button id="archiveUnlockBtn" class="btn btn-danger" type="button">Unlock</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="settingsModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card">
+      <h2>Notification settings</h2>
+      <p>Set the email address used for Notify me.</p>
+      <div class="modal-field">
+        <input
+          id="settingsEmailInput"
+          class="modal-input"
+          type="email"
+          placeholder="name@example.com"
+          autocomplete="email"
+          autocapitalize="off"
+          spellcheck="false"
+        />
+      </div>
+      <div id="settingsError" class="modal-error hidden">Please enter a valid email address</div>
+      <div class="modal-actions modal-actions-settings">
+        <button id="settingsClearBtn" class="btn btn-secondary" type="button">Clear</button>
+        <button id="settingsCancelBtn" class="btn btn-secondary" type="button">Cancel</button>
+        <button id="settingsSaveBtn" class="btn btn-danger" type="button">Save</button>
       </div>
     </div>
   </div>
