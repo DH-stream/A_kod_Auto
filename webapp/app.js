@@ -68,11 +68,47 @@ function getSavedNotifyEmail() {
   return (localStorage.getItem('notify_email') || '').trim().toLowerCase();
 }
 
+function getNotifyStorageKey(email) {
+  return `notify_set__${String(email || '').trim().toLowerCase()}`;
+}
+
+function loadNotifySetFromStorage() {
+  const email = getSavedNotifyEmail();
+  if (!email) {
+    notifySet = new Set();
+    return;
+  }
+
+  try {
+    const raw = localStorage.getItem(getNotifyStorageKey(email));
+    const arr = raw ? JSON.parse(raw) : [];
+    notifySet = new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    notifySet = new Set();
+  }
+}
+
+function saveNotifySetToStorage() {
+  const email = getSavedNotifyEmail();
+  if (!email) return;
+
+  localStorage.setItem(
+    getNotifyStorageKey(email),
+    JSON.stringify([...notifySet])
+  );
+}
+
 function setSavedNotifyEmail(email) {
   localStorage.setItem('notify_email', String(email || '').trim().toLowerCase());
+  loadNotifySetFromStorage();
 }
 
 function clearSavedNotifyEmail() {
+  const email = getSavedNotifyEmail();
+  if (email) {
+    localStorage.removeItem(getNotifyStorageKey(email));
+  }
+
   localStorage.removeItem('notify_email');
   notifySet = new Set();
 }
@@ -309,6 +345,9 @@ async function toggleNotification(tank, ref) {
   } else {
     notifySet.delete(key);
   }
+
+  // NY RAD
+  saveNotifySetToStorage();
 }
 
 async function verifyAppAccess(code) {
@@ -706,6 +745,7 @@ document.addEventListener('keydown', (e) => {
 
 async function init() {
   bindListEvents();
+  loadNotifySetFromStorage();
   lockAppUi();
 }
 
