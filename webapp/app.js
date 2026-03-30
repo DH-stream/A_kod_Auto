@@ -52,17 +52,36 @@ function matches(item, query) {
   return normalize(item.tank).includes(q) || normalize(item.ref).includes(q);
 }
 
-async function loadNotifications() {
-  const { data, error } = await supabase
-    .from('tank_notifications')
-    .select('tank');
+function makeNotifyKey(tank, ref, email) {
+  return `${String(tank || '').trim()}__${String(ref || '').trim()}__${String(email || '').trim().toLowerCase()}`;
+}
 
-  if (error) {
-    console.error(error);
+function getSavedNotifyEmail() {
+  return (localStorage.getItem('notify_email') || '').trim().toLowerCase();
+}
+
+async function loadNotifications() {
+  const email = getSavedNotifyEmail();
+
+  if (!email) {
+    notifySet = new Set();
     return;
   }
 
-  notifySet = new Set((data || []).map((row) => row.tank));
+  const { data, error } = await supabase
+    .from('tank_notifications')
+    .select('tank, ref, email')
+    .eq('email', email);
+
+  if (error) {
+    console.error('loadNotifications failed', error);
+    notifySet = new Set();
+    return;
+  }
+
+  notifySet = new Set(
+    (data || []).map((row) => makeNotifyKey(row.tank, row.ref, row.email))
+  );
 }
 
 async function loadItems() {
@@ -135,14 +154,16 @@ function renderList() {
     return;
   }
 
+  const email = getSavedNotifyEmail();
+
   listEl.innerHTML = filteredItems
     .map((item) => {
       const isOpen = openCardId === item.id;
       const isActive = item.status === 'active' && item.a_kod;
       const isUsed = item.status === 'used';
-      const email = (localStorage.getItem('notify_email') || '').trim().toLowerCase();
-      const notifyKey = `${item.tank}__${item.ref}__${email}`;
-      const notifyEnabled = email ? notifySet.has(notifyKey) : false;
+
+      const notifyKey = makeNotifyKey(item.tank, item.ref, email);
+      const notifyEnabled = !!email && notifySet.has(notifyKey);
 
       const statusLabel = isUsed
         ? 'Used'
@@ -257,7 +278,7 @@ function bindCardEvents() {
 }
 
 async function toggleNotification(tank, ref) {
-  let email = localStorage.getItem('notify_email') || '';
+  let email = getSavedNotifyEmail();
 
   if (!email) {
     email = window.prompt('Enter your email for notifications:') || '';
@@ -277,12 +298,7 @@ async function toggleNotification(tank, ref) {
     return;
   }
 
-  const key = `${tank}__${ref}__${email}`;
-  if (result.enabled) {
-    notifySet.add(key);
-  } else {
-    notifySet.delete(key);
-  }
+  await loadNotifications();
 }
 
 async function verifyAppAccess(code) {
@@ -438,11 +454,15 @@ async function toggleNotifyViaFunction(tank, ref, email) {
       }
     );
 
+    const text = await response.text();
+    console.log('toggle-notify status:', response.status);
+    console.log('toggle-notify raw response:', text);
+
     if (!response.ok) {
       return null;
     }
 
-    const data = await response.json();
+    const data = JSON.parse(text);
     if (data?.ok !== true || typeof data.enabled !== 'boolean') {
       return null;
     }
@@ -552,6 +572,7 @@ appUnlockBtn.addEventListener('click', async () => {
   appAccessError.classList.add('hidden');
   appAccessCode = code;
   unlockAppUi();
+  await loadNotifications();
   await loadItems();
 });
 
