@@ -32,6 +32,9 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
       - name: Get Dropbox access token
         id: dropbox-token
         shell: bash
@@ -83,18 +86,48 @@ jobs:
             --header "Content-Type: application/octet-stream" \
             --data-binary @results.json
 
-      - name: Sync results to Supabase
+      - name: Build sync payload
         shell: bash
         run: |
           jq -c --arg token "${{ secrets.SUPABASE_SYNC_TOKEN }}" \
             '{ token: $token, items: . }' results.json > sync_payload.json
 
-          curl -X POST https://sqqbujdebygfbcpztmri.supabase.co/functions/v1/sync-units \
+      - name: Show sync payload
+        run: cat sync_payload.json
+
+      - name: Sync results to Supabase
+        shell: bash
+        run: |
+          curl -s -X POST https://sqqbujdebygfbcpztmri.supabase.co/functions/v1/sync-units \
             --header "Content-Type: application/json" \
-            --data @sync_payload.json
+            --data @sync_payload.json \
+            -o sync_response.json
+
+      - name: Show sync response
+        run: cat sync_response.json
+
+      - name: Build mail_notifications.json
+        shell: bash
+        run: |
+          jq '.notifications // []' sync_response.json > mail_notifications.json
+
+      - name: Show mail notifications
+        run: cat mail_notifications.json
+
+      - name: Upload mail_notifications.json to Dropbox
+        shell: bash
+        run: |
+          curl -X POST https://content.dropboxapi.com/2/files/upload \
+            --header "Authorization: Bearer ${{ steps.dropbox-token.outputs.access_token }}" \
+            --header "Dropbox-API-Arg: {\"autorename\":false,\"mode\":\"overwrite\",\"mute\":true,\"path\":\"/mail_notifications.json\",\"strict_conflict\":false}" \
+            --header "Content-Type: application/octet-stream" \
+            --data-binary @mail_notifications.json
 
       - name: Upload results artifact
         uses: actions/upload-artifact@v4
         with:
           name: akod-results
-          path: results.json
+          path: |
+            results.json
+            sync_response.json
+            mail_notifications.json
