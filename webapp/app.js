@@ -10,6 +10,7 @@ const appRoot = document.getElementById('appRoot');
 
 const listEl = document.getElementById('list');
 const searchInput = document.getElementById('searchInput');
+const lastUpdatedEl = document.getElementById('lastUpdated');
 
 const activeTabBtn = document.getElementById('activeTabBtn');
 const archiveTabBtn = document.getElementById('archiveTabBtn');
@@ -47,6 +48,8 @@ let archiveUnlocked = false;
 let appUnlocked = false;
 let notifySet = new Set();
 let appAccessCode = '';
+let autoRefreshTimer = null;
+let isLoadingItems = false;
 
 function normalize(value) {
   return String(value || '')
@@ -129,22 +132,52 @@ function closeSettingsModal() {
   closeModal(settingsModal);
 }
 
+function formatRefreshTime(date = new Date()) {
+  return new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
 async function loadItems() {
-  if (!appAccessCode) {
-    listEl.innerHTML = `<div class="empty">Access code required.</div>`;
+  if (!appAccessCode || isLoadingItems) {
     return;
   }
 
-  const items = await fetchUnitsFromFunction(appAccessCode);
+  isLoadingItems = true;
 
-  if (!items) {
-    console.error('loadItems failed: no items returned from get-units');
-    listEl.innerHTML = `<div class="empty">Could not load data.</div>`;
-    return;
+  try {
+    const items = await fetchUnitsFromFunction(appAccessCode);
+
+    if (!items) {
+      console.error('loadItems failed: no items returned from get-units');
+      listEl.innerHTML = `<div class="empty">Could not load data.</div>`;
+      return;
+    }
+
+    allItems = items;
+    applyFilter();
+
+    if (lastUpdatedEl) {
+      lastUpdatedEl.textContent = `Last updated: ${formatRefreshTime()}`;
+    }
+  } finally {
+    isLoadingItems = false;
+  }
+}
+
+function startAutoRefresh() {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
   }
 
-  allItems = items;
-  applyFilter();
+  autoRefreshTimer = setInterval(() => {
+    if (!appUnlocked || !appAccessCode) {
+      return;
+    }
+
+    loadItems();
+  }, 5 * 60 * 1000);
 }
 
 function setTab(tabName) {
@@ -346,7 +379,6 @@ async function toggleNotification(tank, ref) {
     notifySet.delete(key);
   }
 
-  // NY RAD
   saveNotifySetToStorage();
 }
 
@@ -561,6 +593,10 @@ async function markAsUsed(id) {
   }
 
   applyFilter();
+
+  if (lastUpdatedEl) {
+    lastUpdatedEl.textContent = `Last updated: ${formatRefreshTime()}`;
+  }
 }
 
 function unlockAppUi() {
@@ -623,6 +659,7 @@ appUnlockBtn.addEventListener('click', async () => {
   appAccessCode = code;
   unlockAppUi();
   await loadItems();
+  startAutoRefresh();
 });
 
 appCodeInput.addEventListener('keydown', async (e) => {
