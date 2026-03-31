@@ -33,9 +33,6 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install chromium
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
       - name: Get Dropbox access token
         id: dropbox-token
         shell: bash
@@ -87,9 +84,18 @@ jobs:
 
       - name: Build sync payload
         shell: bash
+        env:
+          SUPABASE_SYNC_TOKEN: ${{ secrets.SUPABASE_SYNC_TOKEN }}
         run: |
-          jq -c --arg token "${{ secrets.SUPABASE_SYNC_TOKEN }}" \
-            '{ token: $token, items: . }' results.json > sync_payload.json
+          node -e "
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('results.json', 'utf8'));
+            const payload = {
+              token: process.env.SUPABASE_SYNC_TOKEN,
+              items: results
+            };
+            fs.writeFileSync('sync_payload.json', JSON.stringify(payload));
+          "
 
       - name: Show sync payload
         run: cat sync_payload.json
@@ -108,7 +114,12 @@ jobs:
       - name: Build mail_notifications.json
         shell: bash
         run: |
-          jq '.notifications // []' sync_response.json > mail_notifications.json
+          node -e "
+            const fs = require('fs');
+            const response = JSON.parse(fs.readFileSync('sync_response.json', 'utf8'));
+            const notifications = response.notifications || [];
+            fs.writeFileSync('mail_notifications.json', JSON.stringify(notifications));
+          "
 
       - name: Show mail notifications
         run: cat mail_notifications.json
