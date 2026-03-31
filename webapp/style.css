@@ -504,3 +504,9 @@ input {
 .modal-actions:has(#appUnlockBtn) {
   grid-template-columns: 1fr;
 }
+
+.last-updated {
+  padding: 0 16px 12px;
+  font-size: 12px;
+  opacity: 0.7;
+}
