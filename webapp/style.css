@@ -583,6 +583,7 @@ input {
     font-size: 30px;
     padding-right: 0;
     flex: 1 1 auto;
+    min-width: 0;
   }
 
   .tank {
@@ -612,8 +613,10 @@ input {
     padding: 9px 12px;
   }
 
-  .brand-mark-inline {
-    display: none;
+  .brand-mark-inline,
+  .top-bar .brand-mark-inline,
+  .top-bar .brand-mark-inline .brand-logo {
+    display: none !important;
   }
 
   .brand-mark-mobile {
@@ -622,8 +625,10 @@ input {
     margin-top: 8px;
   }
 
-  .brand-logo {
+  .brand-mark-mobile .brand-logo {
+    display: block;
     height: 20px;
+    width: auto;
   }
 }
 
