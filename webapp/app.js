@@ -7,6 +7,7 @@ createClient(supabaseUrl, supabaseKey);
 
 const bodyEl = document.body;
 const appRoot = document.getElementById('appRoot');
+const brandLogo = document.getElementById('brandLogo');
 
 const listEl = document.getElementById('list');
 const searchInput = document.getElementById('searchInput');
@@ -54,6 +55,18 @@ let notifySet = new Set();
 let appAccessCode = '';
 let autoRefreshTimer = null;
 let isLoadingItems = false;
+
+function pulseLogo() {
+  if (!brandLogo) return;
+
+  brandLogo.classList.remove('is-pulsing');
+  void brandLogo.offsetWidth;
+  brandLogo.classList.add('is-pulsing');
+
+  setTimeout(() => {
+    brandLogo.classList.remove('is-pulsing');
+  }, 1600);
+}
 
 function normalize(value) {
   return String(value || '')
@@ -173,6 +186,8 @@ async function loadItems() {
     if (lastUpdatedEl) {
       lastUpdatedEl.textContent = `Last updated: ${formatRefreshTime()}`;
     }
+
+    pulseLogo();
   } finally {
     isLoadingItems = false;
   }
@@ -610,6 +625,8 @@ async function markAsUsed(id) {
   if (lastUpdatedEl) {
     lastUpdatedEl.textContent = `Last updated: ${formatRefreshTime()}`;
   }
+
+  pulseLogo();
 }
 
 function unlockAppUi() {
