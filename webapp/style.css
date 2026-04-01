@@ -152,17 +152,30 @@ input {
   position: sticky;
   top: 0;
   z-index: 20;
-  padding: 10px 0 28px;
+  padding: 10px 0 16px;
   background: linear-gradient(
     180deg,
-    rgba(248, 251, 255, 0.98) 0%,
-    rgba(245, 249, 253, 0.94) 46%,
-    rgba(241, 246, 252, 0.78) 72%,
-    rgba(239, 244, 250, 0.42) 88%,
+    rgba(248, 251, 255, 0.96) 0%,
+    rgba(243, 247, 252, 0.9) 70%,
     rgba(243, 247, 252, 0) 100%
   );
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 72%,
+    rgba(0, 0, 0, 0.55) 88%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 72%,
+    rgba(0, 0, 0, 0.55) 88%,
+    rgba(0, 0, 0, 0) 100%
+  );
 }
 
 .search-input {
