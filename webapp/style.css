@@ -63,6 +63,12 @@ input {
   gap: 12px;
 }
 
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .top h1 {
   margin: 0;
   font-size: 34px;
@@ -100,6 +106,12 @@ input {
 
 .icon-btn:focus {
   outline: none;
+}
+
+.icon-btn-info {
+  min-width: 44px;
+  padding: 10px 0;
+  text-align: center;
 }
 
 .tabs {
@@ -140,12 +152,17 @@ input {
   position: sticky;
   top: 0;
   z-index: 20;
-  padding: 10px 0 16px;
-  background: linear-gradient(180deg,
-      rgba(248, 251, 255, 0.96) 0%,
-      rgba(243, 247, 252, 0.9) 70%,
-      rgba(243, 247, 252, 0) 100%);
+  padding: 10px 0 28px;
+  background: linear-gradient(
+    180deg,
+    rgba(248, 251, 255, 0.98) 0%,
+    rgba(245, 249, 253, 0.94) 46%,
+    rgba(241, 246, 252, 0.78) 72%,
+    rgba(239, 244, 250, 0.42) 88%,
+    rgba(243, 247, 252, 0) 100%
+  );
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .search-input {
@@ -489,6 +506,10 @@ input {
 
   .top-bar {
     align-items: flex-start;
+  }
+
+  .top-bar-actions {
+    flex-shrink: 0;
   }
 
   .icon-btn {
