@@ -2,7 +2,6 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 
 const LOGIN_URL = process.env.AKOD_LOGIN_URL;
-
 if (!LOGIN_URL) {
   throw new Error('AKOD_LOGIN_URL saknas');
 }
@@ -18,13 +17,11 @@ function cleanRef(input) {
 
 function loadQueue() {
   const queueFromEnv = process.env.QUEUE_JSON;
-
   if (queueFromEnv) {
     return JSON.parse(queueFromEnv);
   }
 
   const filePath = process.env.QUEUE_FILE || './queue.json';
-
   if (!fs.existsSync(filePath)) {
     throw new Error(`Köfil saknas: ${filePath}`);
   }
@@ -35,7 +32,6 @@ function loadQueue() {
 async function fillForm(page, tank, ref) {
   await page.fill('#MainContent_txtUnitID', '');
   await page.fill('#MainContent_txtReleaseNo', '');
-
   await page.fill('#MainContent_txtUnitID', tank);
   await page.fill('#MainContent_txtReleaseNo', ref);
 }
@@ -49,13 +45,61 @@ function makeResult(item, overrides = {}) {
     status: 'Okänt fel',
     aKod: null,
     message: '',
-    ...overrides
+    ...overrides,
   };
+}
+
+async function waitForForm(page) {
+  const unitInput = page.locator('#MainContent_txtUnitID');
+  const refInput = page.locator('#MainContent_txtReleaseNo');
+
+  await unitInput.waitFor({ state: 'visible', timeout: 15000 });
+  await refInput.waitFor({ state: 'visible', timeout: 15000 });
+
+  return { unitInput, refInput };
+}
+
+async function closeBlockingPopup(page) {
+  const overlay = page.locator('#MainContent_ErrorModalPopupExtender_backgroundElement');
+  const okButton = page.getByRole('button', { name: 'OK' });
+  const errorPanel = page.locator('#MainContent_PanelErrorMessage1');
+
+  const overlayVisible = await overlay.isVisible().catch(() => false);
+  if (!overlayVisible) return;
+
+  if (await okButton.isVisible().catch(() => false)) {
+    await okButton.click({ timeout: 3000 }).catch(() => {});
+  }
+
+  await overlay.waitFor({ state: 'hidden', timeout: 7000 }).catch(() => {});
+  await errorPanel.waitFor({ state: 'hidden', timeout: 7000 }).catch(() => {});
+  await page.waitForTimeout(300);
+}
+
+async function readPopupMessage(page) {
+  const overlay = page.locator('#MainContent_ErrorModalPopupExtender_backgroundElement');
+  const overlayVisible = await overlay.isVisible().catch(() => false);
+
+  if (!overlayVisible) return null;
+
+  const warningTable = page.getByRole('table').filter({ hasText: 'Warning!' });
+  if (await warningTable.isVisible().catch(() => false)) {
+    const text = (await warningTable.innerText().catch(() => '')).trim();
+    if (text) return text;
+  }
+
+  const errorPanel = page.locator('#MainContent_PanelErrorMessage1');
+  const panelText = (await errorPanel.innerText().catch(() => '')).trim();
+  if (panelText) return panelText;
+
+  return 'Warning-popup visades';
 }
 
 async function ensureAuthorisationForm(page, username, password) {
   const unitInput = page.locator('#MainContent_txtUnitID');
   const refInput = page.locator('#MainContent_txtReleaseNo');
+
+  await closeBlockingPopup(page);
 
   if (
     await unitInput.isVisible().catch(() => false) &&
@@ -64,9 +108,7 @@ async function ensureAuthorisationForm(page, username, password) {
     return;
   }
 
-  await page.goto(LOGIN_URL, {
-    waitUntil: 'domcontentloaded'
-  });
+  await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('networkidle').catch(() => {});
 
   const usernameInput = page.locator('#MainContent_txtUserName');
@@ -79,14 +121,24 @@ async function ensureAuthorisationForm(page, username, password) {
     await page.waitForLoadState('networkidle').catch(() => {});
   }
 
-  const addNewButton = page.getByRole('button', { name: 'AddNew' });
+  await closeBlockingPopup(page);
 
+  const addNewButton = page.getByRole('button', { name: 'AddNew' });
   if (await addNewButton.isVisible().catch(() => false)) {
-    await addNewButton.click();
+    await addNewButton.click().catch(() => {});
   }
 
-  await unitInput.waitFor({ state: 'visible', timeout: 15000 });
-  await refInput.waitFor({ state: 'visible', timeout: 15000 });
+  await waitForForm(page);
+  await closeBlockingPopup(page);
+}
+
+async function clickAuthorise(page) {
+  const button = page.locator('#MainContent_btnAuthorise');
+
+  await closeBlockingPopup(page);
+  await button.waitFor({ state: 'visible', timeout: 10000 });
+  await button.click({ timeout: 10000 });
+  await page.waitForTimeout(1500);
 }
 
 (async () => {
@@ -99,7 +151,6 @@ async function ensureAuthorisationForm(page, username, password) {
   }
 
   const rawQueue = loadQueue();
-
   if (!Array.isArray(rawQueue) || rawQueue.length === 0) {
     throw new Error('Kön är tom eller ogiltig');
   }
@@ -118,8 +169,8 @@ async function ensureAuthorisationForm(page, username, password) {
           success: false,
           status: 'Ogiltig input',
           aKod: null,
-          message: 'Tank eller Ref blev tom efter rensning'
-        }
+          message: 'Tank eller Ref blev tom efter rensning',
+        },
       };
     }
 
@@ -129,7 +180,7 @@ async function ensureAuthorisationForm(page, username, password) {
       id: item?.id ?? null,
       valid: true,
       tank,
-      ref
+      ref,
     };
   });
 
@@ -142,7 +193,7 @@ async function ensureAuthorisationForm(page, username, password) {
           success: item.result.success,
           status: item.result.status,
           aKod: item.result.aKod,
-          message: item.result.message
+          message: item.result.message,
         })
       );
     }
@@ -150,10 +201,7 @@ async function ensureAuthorisationForm(page, username, password) {
 
   const validQueue = queue.filter((x) => x.valid);
 
-  const browser = await chromium.launch({
-    headless: HEADLESS
-  });
-
+  const browser = await chromium.launch({ headless: HEADLESS });
   const page = await browser.newPage();
 
   try {
@@ -164,108 +212,100 @@ async function ensureAuthorisationForm(page, username, password) {
       const REF = item.ref;
 
       console.log('\n--- NY RAD ---');
-      console.log({
-        id: item.id,
-        TANK,
-        REF
-      });
+      console.log({ id: item.id, TANK, REF });
 
-      const unitInput = page.locator('#MainContent_txtUnitID');
-      const refInput = page.locator('#MainContent_txtReleaseNo');
+      try {
+        await ensureAuthorisationForm(page, USERNAME, PASSWORD);
 
-      await unitInput.waitFor({ state: 'visible' });
-      await refInput.waitFor({ state: 'visible' });
+        const { unitInput, refInput } = await waitForForm(page);
+        await fillForm(page, TANK, REF);
 
-      await fillForm(page, TANK, REF);
+        await clickAuthorise(page);
 
-      await page.getByRole('button', { name: 'Authorise Service' }).click();
-      await page.waitForTimeout(1500);
+        const popupMessage = await readPopupMessage(page);
+        if (popupMessage) {
+          const result = makeResult(item, {
+            success: false,
+            status: 'Popup/fel',
+            aKod: null,
+            message: popupMessage,
+          });
+          console.log(result);
+          results.push(result);
 
-      const bodyText = await page.locator('body').innerText();
-
-      const authMatch = bodyText.match(/Authorisation\s*:\s*(\d+)/i);
-      if (authMatch) {
-        const aKod = authMatch[1];
-
-        const result = makeResult(item, {
-          success: true,
-          status: 'Klar',
-          aKod,
-          message: 'A-kod hittad'
-        });
-
-        console.log(result);
-        results.push(result);
-
-        const continueButton = page.locator('#MainContent_btnAddNewAuthorisation');
-
-        if (await continueButton.isVisible().catch(() => false)) {
-          await continueButton.click();
-          await unitInput.waitFor({ state: 'visible', timeout: 5000 });
-          await refInput.waitFor({ state: 'visible', timeout: 5000 });
-        } else {
-          console.warn('Continue-knappen hittades inte efter success. Återställer formuläret manuellt.');
+          await closeBlockingPopup(page);
           await ensureAuthorisationForm(page, USERNAME, PASSWORD);
+          continue;
         }
 
-        continue;
-      }
+        const bodyText = await page.locator('body').innerText().catch(() => '');
+        const authMatch = bodyText.match(/Authorisation\s*:\s*(\d+)/i);
 
-      const okButton = page.getByRole('button', { name: 'OK' });
+        if (authMatch) {
+          const aKod = authMatch[1];
+          const result = makeResult(item, {
+            success: true,
+            status: 'Klar',
+            aKod,
+            message: 'A-kod hittad',
+          });
+          console.log(result);
+          results.push(result);
 
-      if (await okButton.isVisible().catch(() => false)) {
-        let warningText = '';
+          const continueButton = page.locator('#MainContent_btnAddNewAuthorisation');
+          if (await continueButton.isVisible().catch(() => false)) {
+            await continueButton.click({ timeout: 5000 }).catch(() => {});
+            await unitInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+            await refInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+          } else {
+            console.warn('Continue-knappen hittades inte efter success. Återställer formuläret manuellt.');
+            await ensureAuthorisationForm(page, USERNAME, PASSWORD);
+          }
 
-        const warningTable = page.getByRole('table').filter({
-          hasText: 'Warning!'
-        });
-
-        if (await warningTable.isVisible().catch(() => false)) {
-          warningText = (await warningTable.innerText().catch(() => '')).trim();
+          await closeBlockingPopup(page);
+          continue;
         }
 
-        await okButton.click();
+        if (/Object reference not set to an instance of an object/i.test(bodyText)) {
+          const result = makeResult(item, {
+            success: false,
+            status: 'Tekniskt fel',
+            aKod: null,
+            message: 'Object reference not set to an instance of an object',
+          });
+          console.log(result);
+          results.push(result);
+
+          await closeBlockingPopup(page);
+          await ensureAuthorisationForm(page, USERNAME, PASSWORD);
+          continue;
+        }
 
         const result = makeResult(item, {
           success: false,
-          status: 'Popup/fel',
+          status: 'Okänt eller vänteläge',
           aKod: null,
-          message: warningText || 'Warning-popup visades'
+          message: 'Ingen A-kod, popup eller känt tekniskt fel upptäcktes',
         });
-
         console.log(result);
         results.push(result);
 
+        await closeBlockingPopup(page);
         await ensureAuthorisationForm(page, USERNAME, PASSWORD);
-        continue;
-      }
-
-      if (/Object reference not set to an instance of an object/i.test(bodyText)) {
+      } catch (rowErr) {
         const result = makeResult(item, {
           success: false,
-          status: 'Tekniskt fel',
+          status: 'Scriptfel',
           aKod: null,
-          message: 'Object reference not set to an instance of an object'
+          message: String(rowErr?.message || rowErr),
         });
-
         console.log(result);
         results.push(result);
 
+        await closeBlockingPopup(page);
         await ensureAuthorisationForm(page, USERNAME, PASSWORD);
         continue;
       }
-
-      const result = makeResult(item, {
-        success: false,
-        status: 'Okänt eller vänteläge',
-        aKod: null,
-        message: 'Ingen A-kod, popup eller känt tekniskt fel upptäcktes'
-      });
-
-      console.log(result);
-      results.push(result);
-
-      await ensureAuthorisationForm(page, USERNAME, PASSWORD);
     }
 
     const outputPath = process.env.RESULT_FILE || './results.json';
@@ -277,9 +317,8 @@ async function ensureAuthorisationForm(page, username, password) {
     const summary = {
       total: results.length,
       success: results.filter((r) => r.success).length,
-      failed: results.filter((r) => !r.success).length
+      failed: results.filter((r) => !r.success).length,
     };
-
     console.log(summary);
   } catch (err) {
     console.error('ERROR:', err.message);
