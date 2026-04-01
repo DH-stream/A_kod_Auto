@@ -14,7 +14,11 @@
       <header class="top">
         <div class="top-bar">
           <h1>A-code Finder</h1>
-          <button id="settingsBtn" class="icon-btn" type="button" aria-label="Settings">Settings</button>
+
+          <div class="top-bar-actions">
+            <button id="infoBtn" class="icon-btn icon-btn-info" type="button" aria-label="Privacy information">i</button>
+            <button id="settingsBtn" class="icon-btn" type="button" aria-label="Settings">Settings</button>
+          </div>
         </div>
       </header>
 
@@ -113,6 +117,29 @@
         <button id="settingsClearBtn" class="btn btn-secondary" type="button">Clear</button>
         <button id="settingsCancelBtn" class="btn btn-secondary" type="button">Cancel</button>
         <button id="settingsSaveBtn" class="btn btn-danger" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="infoModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card">
+      <h2>Privacy information</h2>
+      <p>This web app may store email addresses for notification purposes.</p>
+
+      <div class="modal-unit-info">
+        Email addresses are used only to send status notifications related to A-code processing.
+        They are not used for marketing and are not shared for advertising purposes.
+        <br /><br />
+        Operational data such as tank identifiers, reference numbers, status values and notification
+        preferences may also be processed to make the service work as intended.
+        <br /><br />
+        Data is stored only as needed for the operation of this solution and related internal workflows.
+        <br /><br />
+        If you need your information corrected or removed, contact the responsible internal administrator.
+      </div>
+
+      <div class="modal-actions">
+        <button id="infoCloseBtn" class="btn btn-secondary" type="button">Close</button>
       </div>
     </div>
   </div>
