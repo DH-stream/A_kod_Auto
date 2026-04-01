@@ -56,6 +56,27 @@ input {
   margin-bottom: 18px;
 }
 
+.brand-mark {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.brand-logo {
+  display: block;
+  height: 24px;
+  width: auto;
+  opacity: 0.94;
+  filter:
+    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.45))
+    drop-shadow(0 4px 10px rgba(36, 52, 71, 0.12));
+  transform-origin: center;
+}
+
+.brand-logo.is-pulsing {
+  animation: logoPulseGlow 1.5s ease, logoShake 0.55s ease;
+}
+
 .top-bar {
   display: flex;
   align-items: center;
@@ -490,6 +511,39 @@ input {
   }
 }
 
+@keyframes logoPulseGlow {
+  0% {
+    opacity: 0.94;
+    filter:
+      drop-shadow(0 1px 0 rgba(255, 255, 255, 0.45))
+      drop-shadow(0 4px 10px rgba(36, 52, 71, 0.12));
+  }
+
+  30% {
+    opacity: 1;
+    filter:
+      drop-shadow(0 1px 0 rgba(255, 255, 255, 0.55))
+      drop-shadow(0 6px 16px rgba(36, 52, 71, 0.2))
+      drop-shadow(0 0 14px rgba(97, 116, 137, 0.24));
+  }
+
+  100% {
+    opacity: 0.94;
+    filter:
+      drop-shadow(0 1px 0 rgba(255, 255, 255, 0.45))
+      drop-shadow(0 4px 10px rgba(36, 52, 71, 0.12));
+  }
+}
+
+@keyframes logoShake {
+  0% { transform: translateX(0); }
+  18% { transform: translateX(-1.2px) rotate(-0.4deg); }
+  36% { transform: translateX(1.5px) rotate(0.45deg); }
+  54% { transform: translateX(-1px) rotate(-0.25deg); }
+  72% { transform: translateX(0.8px) rotate(0.2deg); }
+  100% { transform: translateX(0); }
+}
+
 @media (max-width: 720px) {
   .app {
     padding-top: 18px;
@@ -527,6 +581,10 @@ input {
 
   .icon-btn {
     padding: 9px 12px;
+  }
+
+  .brand-logo {
+    height: 22px;
   }
 }
 
