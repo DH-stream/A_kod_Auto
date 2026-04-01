@@ -5,6 +5,9 @@ const supabaseKey = 'sb_publishable_msK6DOpLi0E31YOGYDkrIw_AM8yxtQf';
 
 createClient(supabaseUrl, supabaseKey);
 
+const APP_ACCESS_SESSION_KEY = 'app_access_code';
+const ARCHIVE_ACCESS_SESSION_KEY = 'archive_access_ok';
+
 const bodyEl = document.body;
 const appRoot = document.getElementById('appRoot');
 const brandLogo = document.getElementById('brandLogo');
@@ -55,6 +58,30 @@ let notifySet = new Set();
 let appAccessCode = '';
 let autoRefreshTimer = null;
 let isLoadingItems = false;
+
+function saveAppAccessToSession(code) {
+  sessionStorage.setItem(APP_ACCESS_SESSION_KEY, code);
+}
+
+function getAppAccessFromSession() {
+  return sessionStorage.getItem(APP_ACCESS_SESSION_KEY) || '';
+}
+
+function clearAppAccessFromSession() {
+  sessionStorage.removeItem(APP_ACCESS_SESSION_KEY);
+}
+
+function saveArchiveAccessToSession() {
+  sessionStorage.setItem(ARCHIVE_ACCESS_SESSION_KEY, 'true');
+}
+
+function hasArchiveAccessInSession() {
+  return sessionStorage.getItem(ARCHIVE_ACCESS_SESSION_KEY) === 'true';
+}
+
+function clearArchiveAccessFromSession() {
+  sessionStorage.removeItem(ARCHIVE_ACCESS_SESSION_KEY);
+}
 
 function pulseLogo() {
   if (!brandLogo) return;
@@ -176,7 +203,12 @@ async function loadItems() {
 
     if (!items) {
       console.error('loadItems failed: no items returned from get-units');
+      clearAppAccessFromSession();
+      clearArchiveAccessFromSession();
+      archiveUnlocked = false;
+      appAccessCode = '';
       listEl.innerHTML = `<div class="empty">Could not load data.</div>`;
+      lockAppUi();
       return;
     }
 
@@ -306,10 +338,10 @@ function renderList() {
 
                 <div class="card-actions">
                   ${isUsed
-          ? ''
-          : isActive
-            ? `<button class="btn btn-used" type="button" data-action="used" data-id="${item.id}">Mark as used</button>`
-            : `
+                    ? ''
+                    : isActive
+                      ? `<button class="btn btn-used" type="button" data-action="used" data-id="${item.id}">Mark as used</button>`
+                      : `
                           <button
                             class="btn btn-notify ${notifyEnabled ? 'is-active' : ''}"
                             type="button"
@@ -321,7 +353,7 @@ function renderList() {
                             ${notifyEnabled ? 'Notification enabled' : 'Notify me'}
                           </button>
                         `
-        }
+                  }
                 </div>
               </div>
             </div>
@@ -682,11 +714,13 @@ appUnlockBtn.addEventListener('click', async () => {
 
   if (!ok) {
     appAccessError.classList.remove('hidden');
+    clearAppAccessFromSession();
     return;
   }
 
   appAccessError.classList.add('hidden');
   appAccessCode = code;
+  saveAppAccessToSession(code);
   unlockAppUi();
   await loadItems();
   startAutoRefresh();
@@ -725,12 +759,15 @@ archiveCancelBtn.addEventListener('click', () => {
 archiveUnlockBtn.addEventListener('click', async () => {
   const code = archiveCodeInput.value.trim();
   const ok = await verifyArchiveAccess(code);
+
   if (!ok) {
     archiveAccessError.classList.remove('hidden');
+    clearArchiveAccessFromSession();
     return;
   }
 
   archiveUnlocked = true;
+  saveArchiveAccessToSession();
   archiveAccessError.classList.add('hidden');
   closeModal(archiveAccessModal);
   setTab('archive');
@@ -824,7 +861,23 @@ document.addEventListener('keydown', (e) => {
 async function init() {
   bindListEvents();
   loadNotifySetFromStorage();
-  lockAppUi();
+
+  const savedCode = getAppAccessFromSession();
+  const savedArchiveAccess = hasArchiveAccessInSession();
+
+  if (savedArchiveAccess) {
+    archiveUnlocked = true;
+  }
+
+  if (!savedCode) {
+    lockAppUi();
+    return;
+  }
+
+  appAccessCode = savedCode;
+  unlockAppUi();
+  await loadItems();
+  startAutoRefresh();
 }
 
 init();
