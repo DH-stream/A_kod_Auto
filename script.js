@@ -1,6 +1,12 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 
+const LOGIN_URL = process.env.AKOD_LOGIN_URL;
+
+if (!LOGIN_URL) {
+  throw new Error('AKOD_LOGIN_URL saknas');
+}
+
 // ===== CLEAN =====
 function cleanTank(input) {
   return String(input || '').replace(/[^a-zA-Z0-9]/g, '');
@@ -58,7 +64,7 @@ async function ensureAuthorisationForm(page, username, password) {
     return;
   }
 
-  await page.goto('https://eservices.alvsborgroro.com/Login.aspx', {
+  await page.goto(LOGIN_URL, {
     waitUntil: 'domcontentloaded'
   });
   await page.waitForLoadState('networkidle').catch(() => {});
