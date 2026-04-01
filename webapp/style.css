@@ -56,10 +56,47 @@ input {
   margin-bottom: 18px;
 }
 
+.top-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+}
+
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  z-index: 2;
+}
+
+.top h1 {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  font-weight: 800;
+  text-align: left;
+  position: relative;
+  z-index: 2;
+}
+
 .brand-mark {
   display: flex;
   justify-content: center;
-  margin-bottom: 12px;
+}
+
+.brand-mark-inline {
+  position: absolute;
+  left: 50%;
+  top: 54%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .brand-logo {
@@ -75,28 +112,6 @@ input {
 
 .brand-logo.is-pulsing {
   animation: logoPulseGlow 1.5s ease, logoShake 0.55s ease;
-}
-
-.top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.top-bar-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.top h1 {
-  margin: 0;
-  font-size: 34px;
-  line-height: 1.05;
-  letter-spacing: -0.04em;
-  font-weight: 800;
-  text-align: left;
 }
 
 .icon-btn {
@@ -573,6 +588,7 @@ input {
 
   .top-bar {
     align-items: flex-start;
+    min-height: 58px;
   }
 
   .top-bar-actions {
@@ -583,8 +599,12 @@ input {
     padding: 9px 12px;
   }
 
+  .brand-mark-inline {
+    top: 56%;
+  }
+
   .brand-logo {
-    height: 22px;
+    height: 20px;
   }
 }
 
