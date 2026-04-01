@@ -82,6 +82,9 @@ input {
   text-align: left;
   position: relative;
   z-index: 2;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding-right: 156px;
 }
 
 .brand-mark {
@@ -97,6 +100,10 @@ input {
   margin: 0;
   pointer-events: none;
   z-index: 1;
+}
+
+.brand-mark-mobile {
+  display: none;
 }
 
 .brand-logo {
@@ -197,7 +204,6 @@ input {
   );
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-
   -webkit-mask-image: linear-gradient(
     to bottom,
     rgba(0, 0, 0, 1) 0%,
@@ -564,8 +570,19 @@ input {
     padding-top: 18px;
   }
 
+  .top {
+    margin-bottom: 16px;
+  }
+
+  .top-bar {
+    min-height: auto;
+    align-items: center;
+  }
+
   .top h1 {
     font-size: 30px;
+    padding-right: 0;
+    flex: 1 1 auto;
   }
 
   .tank {
@@ -586,13 +603,9 @@ input {
     grid-template-columns: 1fr;
   }
 
-  .top-bar {
-    align-items: flex-start;
-    min-height: 58px;
-  }
-
   .top-bar-actions {
     flex-shrink: 0;
+    gap: 8px;
   }
 
   .icon-btn {
@@ -600,7 +613,13 @@ input {
   }
 
   .brand-mark-inline {
-    top: 56%;
+    display: none;
+  }
+
+  .brand-mark-mobile {
+    display: flex;
+    justify-content: center;
+    margin-top: 8px;
   }
 
   .brand-logo {
