@@ -39,6 +39,10 @@ const settingsClearBtn = document.getElementById('settingsClearBtn');
 const settingsCancelBtn = document.getElementById('settingsCancelBtn');
 const settingsSaveBtn = document.getElementById('settingsSaveBtn');
 
+const infoBtn = document.getElementById('infoBtn');
+const infoModal = document.getElementById('infoModal');
+const infoCloseBtn = document.getElementById('infoCloseBtn');
+
 let allItems = [];
 let filteredItems = [];
 let pendingUseId = null;
@@ -130,6 +134,14 @@ function openSettingsModal() {
 function closeSettingsModal() {
   settingsError.classList.add('hidden');
   closeModal(settingsModal);
+}
+
+function openInfoModal() {
+  openModal(infoModal);
+}
+
+function closeInfoModal() {
+  closeModal(infoModal);
 }
 
 function formatRefreshTime(date = new Date()) {
@@ -569,7 +581,8 @@ function closeModal(modalEl) {
     !appAccessModal.classList.contains('hidden') ||
     !confirmModal.classList.contains('hidden') ||
     !archiveAccessModal.classList.contains('hidden') ||
-    !settingsModal.classList.contains('hidden');
+    !settingsModal.classList.contains('hidden') ||
+    !infoModal.classList.contains('hidden');
 
   if (!anyModalOpen) {
     bodyEl.classList.remove('modal-open');
@@ -761,9 +774,18 @@ settingsModal.addEventListener('click', (e) => {
   }
 });
 
-archiveAccessModal.addEventListener('click', (e) => {
-  if (e.target === archiveAccessModal) {
-    closeModal(archiveAccessModal);
+infoBtn.addEventListener('click', () => {
+  searchInput.blur();
+  openInfoModal();
+});
+
+infoCloseBtn.addEventListener('click', () => {
+  closeInfoModal();
+});
+
+infoModal.addEventListener('click', (e) => {
+  if (e.target === infoModal) {
+    closeInfoModal();
   }
 });
 
@@ -776,6 +798,8 @@ document.addEventListener('keydown', (e) => {
       closeModal(archiveAccessModal);
     } else if (!settingsModal.classList.contains('hidden')) {
       closeSettingsModal();
+    } else if (!infoModal.classList.contains('hidden')) {
+      closeInfoModal();
     }
   }
 });
