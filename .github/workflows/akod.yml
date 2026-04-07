@@ -75,6 +75,59 @@ jobs:
       - name: Show results
         run: cat results.json
 
+      - name: Detect duplicates and build sync-ready file
+        shell: bash
+        run: |
+          node -e "
+            const fs = require('fs');
+
+            const results = JSON.parse(fs.readFileSync('results.json', 'utf8'));
+            const seen = new Map();
+            const syncReady = [];
+            const duplicates = [];
+
+            const normTank = (v) => String(v || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            const normRef = (v) => String(v || '').replace(/[^0-9/]/g, '');
+
+            for (const item of results) {
+              const key = `${normTank(item.tank)}__${normRef(item.ref)}`;
+
+              if (!seen.has(key)) {
+                seen.set(key, item);
+                syncReady.push(item);
+              } else {
+                duplicates.push({
+                  ...item,
+                  duplicate: true,
+                  duplicateKey: key,
+                  duplicateOfId: seen.get(key)?.id ?? null,
+                  duplicateMessage: 'Dublett i samma körning. Skickades inte till Supabase sync.'
+                });
+              }
+            }
+
+            fs.writeFileSync('sync_results.json', JSON.stringify(syncReady, null, 2), 'utf8');
+            fs.writeFileSync('duplicates.json', JSON.stringify(duplicates, null, 2), 'utf8');
+
+            console.log(JSON.stringify({
+              totalResults: results.length,
+              syncReady: syncReady.length,
+              duplicates: duplicates.length
+            }, null, 2));
+          "
+
+      - name: Show duplicate summary
+        shell: bash
+        run: |
+          node -e "
+            const fs = require('fs');
+            const duplicates = JSON.parse(fs.readFileSync('duplicates.json', 'utf8'));
+            console.log({ duplicates: duplicates.length });
+            if (duplicates.length) {
+              console.log(JSON.stringify(duplicates, null, 2));
+            }
+          "
+
       - name: Upload results.json to Dropbox
         shell: bash
         env:
@@ -93,7 +146,7 @@ jobs:
         run: |
           node -e "
             const fs = require('fs');
-            const results = JSON.parse(fs.readFileSync('results.json', 'utf8'));
+            const results = JSON.parse(fs.readFileSync('sync_results.json', 'utf8'));
             const payload = {
               token: process.env.SUPABASE_SYNC_TOKEN,
               items: results
@@ -159,5 +212,7 @@ jobs:
           name: akod-results
           path: |
             results.json
+            sync_results.json
+            duplicates.json
             sync_response.json
             mail_notifications.json
