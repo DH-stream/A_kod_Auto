@@ -6,6 +6,11 @@ if (!LOGIN_URL) {
   throw new Error('AKOD_LOGIN_URL saknas');
 }
 
+const NAV_TIMEOUT = 90000;
+const ACTION_TIMEOUT = 15000;
+const RETRY_ATTEMPTS = 3;
+const RETRY_DELAY = 5000;
+
 // ===== CLEAN =====
 function cleanTank(input) {
   return String(input || '').replace(/[^a-zA-Z0-9]/g, '');
@@ -27,6 +32,56 @@ function loadQueue() {
   }
 
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+async function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function gotoWithRetry(page, url, label = 'goto') {
+  let lastError;
+
+  for (let i = 1; i <= RETRY_ATTEMPTS; i++) {
+    try {
+      console.log(`${label} försök ${i}/${RETRY_ATTEMPTS}`);
+      await page.goto(url, {
+        waitUntil: 'domcontentloaded',
+        timeout: NAV_TIMEOUT,
+      });
+      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+      return;
+    } catch (err) {
+      lastError = err;
+      console.warn(`${label} misslyckades (${i}/${RETRY_ATTEMPTS}): ${err.message}`);
+
+      if (i < RETRY_ATTEMPTS) {
+        await wait(RETRY_DELAY);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+async function clickWithRetry(locator, label = 'click') {
+  let lastError;
+
+  for (let i = 1; i <= RETRY_ATTEMPTS; i++) {
+    try {
+      console.log(`${label} försök ${i}/${RETRY_ATTEMPTS}`);
+      await locator.click({ timeout: ACTION_TIMEOUT });
+      return;
+    } catch (err) {
+      lastError = err;
+      console.warn(`${label} misslyckades (${i}/${RETRY_ATTEMPTS}): ${err.message}`);
+
+      if (i < RETRY_ATTEMPTS) {
+        await wait(RETRY_DELAY);
+      }
+    }
+  }
+
+  throw lastError;
 }
 
 async function fillForm(page, tank, ref) {
@@ -53,8 +108,8 @@ async function waitForForm(page) {
   const unitInput = page.locator('#MainContent_txtUnitID');
   const refInput = page.locator('#MainContent_txtReleaseNo');
 
-  await unitInput.waitFor({ state: 'visible', timeout: 15000 });
-  await refInput.waitFor({ state: 'visible', timeout: 15000 });
+  await unitInput.waitFor({ state: 'visible', timeout: ACTION_TIMEOUT });
+  await refInput.waitFor({ state: 'visible', timeout: ACTION_TIMEOUT });
 
   return { unitInput, refInput };
 }
@@ -68,7 +123,7 @@ async function closeBlockingPopup(page) {
   if (!overlayVisible) return;
 
   if (await okButton.isVisible().catch(() => false)) {
-    await okButton.click({ timeout: 3000 }).catch(() => {});
+    await clickWithRetry(okButton, 'Popup OK').catch(() => {});
   }
 
   await overlay.waitFor({ state: 'hidden', timeout: 7000 }).catch(() => {});
@@ -79,7 +134,6 @@ async function closeBlockingPopup(page) {
 async function readPopupMessage(page) {
   const overlay = page.locator('#MainContent_ErrorModalPopupExtender_backgroundElement');
   const overlayVisible = await overlay.isVisible().catch(() => false);
-
   if (!overlayVisible) return null;
 
   const warningTable = page.getByRole('table').filter({ hasText: 'Warning!' });
@@ -108,8 +162,7 @@ async function ensureAuthorisationForm(page, username, password) {
     return;
   }
 
-  await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' });
-  await page.waitForLoadState('networkidle').catch(() => {});
+  await gotoWithRetry(page, LOGIN_URL, 'Öppnar login-sida');
 
   const usernameInput = page.locator('#MainContent_txtUserName');
   const passwordInput = page.locator('#MainContent_txtPassword');
@@ -117,15 +170,20 @@ async function ensureAuthorisationForm(page, username, password) {
   if (await usernameInput.isVisible().catch(() => false)) {
     await usernameInput.fill(username);
     await passwordInput.fill(password);
-    await page.getByRole('button', { name: 'Login' }).click();
-    await page.waitForLoadState('networkidle').catch(() => {});
+
+    await clickWithRetry(
+      page.getByRole('button', { name: 'Login' }),
+      'Login click'
+    );
+
+    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   await closeBlockingPopup(page);
 
   const addNewButton = page.getByRole('button', { name: 'AddNew' });
   if (await addNewButton.isVisible().catch(() => false)) {
-    await addNewButton.click().catch(() => {});
+    await clickWithRetry(addNewButton, 'AddNew click').catch(() => {});
   }
 
   await waitForForm(page);
@@ -136,8 +194,8 @@ async function clickAuthorise(page) {
   const button = page.locator('#MainContent_btnAuthorise');
 
   await closeBlockingPopup(page);
-  await button.waitFor({ state: 'visible', timeout: 10000 });
-  await button.click({ timeout: 10000 });
+  await button.waitFor({ state: 'visible', timeout: ACTION_TIMEOUT });
+  await clickWithRetry(button, 'Authorise Service click');
   await page.waitForTimeout(1500);
 }
 
@@ -204,6 +262,9 @@ async function clickAuthorise(page) {
   const browser = await chromium.launch({ headless: HEADLESS });
   const page = await browser.newPage();
 
+  page.setDefaultTimeout(ACTION_TIMEOUT);
+  page.setDefaultNavigationTimeout(NAV_TIMEOUT);
+
   try {
     await ensureAuthorisationForm(page, USERNAME, PASSWORD);
 
@@ -218,8 +279,8 @@ async function clickAuthorise(page) {
         await ensureAuthorisationForm(page, USERNAME, PASSWORD);
 
         const { unitInput, refInput } = await waitForForm(page);
-        await fillForm(page, TANK, REF);
 
+        await fillForm(page, TANK, REF);
         await clickAuthorise(page);
 
         const popupMessage = await readPopupMessage(page);
@@ -230,6 +291,7 @@ async function clickAuthorise(page) {
             aKod: null,
             message: popupMessage,
           });
+
           console.log(result);
           results.push(result);
 
@@ -243,18 +305,20 @@ async function clickAuthorise(page) {
 
         if (authMatch) {
           const aKod = authMatch[1];
+
           const result = makeResult(item, {
             success: true,
             status: 'Klar',
             aKod,
             message: 'A-kod hittad',
           });
+
           console.log(result);
           results.push(result);
 
           const continueButton = page.locator('#MainContent_btnAddNewAuthorisation');
           if (await continueButton.isVisible().catch(() => false)) {
-            await continueButton.click({ timeout: 5000 }).catch(() => {});
+            await clickWithRetry(continueButton, 'Continue click').catch(() => {});
             await unitInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
             await refInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
           } else {
@@ -273,6 +337,7 @@ async function clickAuthorise(page) {
             aKod: null,
             message: 'Object reference not set to an instance of an object',
           });
+
           console.log(result);
           results.push(result);
 
@@ -287,6 +352,7 @@ async function clickAuthorise(page) {
           aKod: null,
           message: 'Ingen A-kod, popup eller känt tekniskt fel upptäcktes',
         });
+
         console.log(result);
         results.push(result);
 
@@ -299,6 +365,7 @@ async function clickAuthorise(page) {
           aKod: null,
           message: String(rowErr?.message || rowErr),
         });
+
         console.log(result);
         results.push(result);
 
@@ -319,6 +386,7 @@ async function clickAuthorise(page) {
       success: results.filter((r) => r.success).length,
       failed: results.filter((r) => !r.success).length,
     };
+
     console.log(summary);
   } catch (err) {
     console.error('ERROR:', err.message);
