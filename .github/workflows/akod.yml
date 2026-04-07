@@ -62,7 +62,8 @@ jobs:
       - name: Validate queue.json
         run: node -e "JSON.parse(require('fs').readFileSync('queue.json','utf8')); console.log('queue.json is valid JSON')"
 
-      - name: Run script
+      - name: Run script with retry
+        shell: bash
         env:
           USERNAME: ${{ secrets.AKOD_USERNAME }}
           PASSWORD: ${{ secrets.AKOD_PASSWORD }}
@@ -70,7 +71,36 @@ jobs:
           HEADLESS: "true"
           QUEUE_FILE: "./queue.json"
           RESULT_FILE: "./results.json"
-        run: node script.js
+        run: |
+          set +e
+
+          max_attempts=3
+          attempt=1
+
+          while [ $attempt -le $max_attempts ]; do
+            echo "Kör script.js försök $attempt av $max_attempts"
+            node script.js
+            exit_code=$?
+
+            if [ $exit_code -eq 0 ]; then
+              echo "script.js lyckades på försök $attempt"
+              break
+            fi
+
+            echo "script.js misslyckades på försök $attempt med exit code $exit_code"
+
+            if [ $attempt -lt $max_attempts ]; then
+              echo "Väntar 20 sekunder innan nytt försök..."
+              sleep 20
+            fi
+
+            attempt=$((attempt + 1))
+          done
+
+          if [ $exit_code -ne 0 ]; then
+            echo "Alla försök misslyckades"
+            exit $exit_code
+          fi
 
       - name: Show results
         run: cat results.json
@@ -78,55 +108,49 @@ jobs:
       - name: Detect duplicates and build sync-ready file
         shell: bash
         run: |
-          node -e "
-            const fs = require('fs');
+          node -e "const fs = require('fs');
+          const results = JSON.parse(fs.readFileSync('results.json', 'utf8'));
+          const seen = new Map();
+          const syncReady = [];
+          const duplicates = [];
+          const normTank = (v) => String(v || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+          const normRef = (v) => String(v || '').replace(/[^0-9/]/g, '');
 
-            const results = JSON.parse(fs.readFileSync('results.json', 'utf8'));
-            const seen = new Map();
-            const syncReady = [];
-            const duplicates = [];
+          for (const item of results) {
+            const key = normTank(item.tank) + '__' + normRef(item.ref);
 
-            const normTank = (v) => String(v || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-            const normRef = (v) => String(v || '').replace(/[^0-9/]/g, '');
-
-            for (const item of results) {
-              const key = normTank(item.tank) + '__' + normRef(item.ref);
-
-              if (!seen.has(key)) {
-                seen.set(key, item);
-                syncReady.push(item);
-              } else {
-                duplicates.push({
-                  ...item,
-                  duplicate: true,
-                  duplicateKey: key,
-                  duplicateOfId: seen.get(key)?.id ?? null,
-                  duplicateMessage: 'Dublett i samma körning. Skickades inte till Supabase sync.'
-                });
-              }
+            if (!seen.has(key)) {
+              seen.set(key, item);
+              syncReady.push(item);
+            } else {
+              duplicates.push({
+                ...item,
+                duplicate: true,
+                duplicateKey: key,
+                duplicateOfId: seen.get(key)?.id ?? null,
+                duplicateMessage: 'Dublett i samma körning. Skickades inte till Supabase sync.'
+              });
             }
+          }
 
-            fs.writeFileSync('sync_results.json', JSON.stringify(syncReady, null, 2), 'utf8');
-            fs.writeFileSync('duplicates.json', JSON.stringify(duplicates, null, 2), 'utf8');
+          fs.writeFileSync('sync_results.json', JSON.stringify(syncReady, null, 2), 'utf8');
+          fs.writeFileSync('duplicates.json', JSON.stringify(duplicates, null, 2), 'utf8');
 
-            console.log(JSON.stringify({
-              totalResults: results.length,
-              syncReady: syncReady.length,
-              duplicates: duplicates.length
-            }, null, 2));
-          "
+          console.log(JSON.stringify({
+            totalResults: results.length,
+            syncReady: syncReady.length,
+            duplicates: duplicates.length
+          }, null, 2));"
 
       - name: Show duplicate summary
         shell: bash
         run: |
-          node -e "
-            const fs = require('fs');
-            const duplicates = JSON.parse(fs.readFileSync('duplicates.json', 'utf8'));
-            console.log({ duplicates: duplicates.length });
-            if (duplicates.length) {
-              console.log(JSON.stringify(duplicates, null, 2));
-            }
-          "
+          node -e "const fs = require('fs');
+          const duplicates = JSON.parse(fs.readFileSync('duplicates.json', 'utf8'));
+          console.log({ duplicates: duplicates.length });
+          if (duplicates.length) {
+            console.log(JSON.stringify(duplicates, null, 2));
+          }"
 
       - name: Upload results.json to Dropbox
         shell: bash
@@ -144,24 +168,20 @@ jobs:
         env:
           SUPABASE_SYNC_TOKEN: ${{ secrets.SUPABASE_SYNC_TOKEN }}
         run: |
-          node -e "
-            const fs = require('fs');
-            const results = JSON.parse(fs.readFileSync('sync_results.json', 'utf8'));
-            const payload = {
-              token: process.env.SUPABASE_SYNC_TOKEN,
-              items: results
-            };
-            fs.writeFileSync('sync_payload.json', JSON.stringify(payload));
-          "
+          node -e "const fs = require('fs');
+          const results = JSON.parse(fs.readFileSync('sync_results.json', 'utf8'));
+          const payload = {
+            token: process.env.SUPABASE_SYNC_TOKEN,
+            items: results
+          };
+          fs.writeFileSync('sync_payload.json', JSON.stringify(payload));"
 
       - name: Show sync payload summary
         shell: bash
         run: |
-          node -e "
-            const fs = require('fs');
-            const payload = JSON.parse(fs.readFileSync('sync_payload.json', 'utf8'));
-            console.log({ items: Array.isArray(payload.items) ? payload.items.length : 0 });
-          "
+          node -e "const fs = require('fs');
+          const payload = JSON.parse(fs.readFileSync('sync_payload.json', 'utf8'));
+          console.log({ items: Array.isArray(payload.items) ? payload.items.length : 0 });"
 
       - name: Sync results to Supabase
         shell: bash
@@ -179,21 +199,17 @@ jobs:
       - name: Build mail_notifications.json
         shell: bash
         run: |
-          node -e "
-            const fs = require('fs');
-            const response = JSON.parse(fs.readFileSync('sync_response.json', 'utf8'));
-            const notifications = response.notifications || [];
-            fs.writeFileSync('mail_notifications.json', JSON.stringify(notifications));
-          "
+          node -e "const fs = require('fs');
+          const response = JSON.parse(fs.readFileSync('sync_response.json', 'utf8'));
+          const notifications = response.notifications || [];
+          fs.writeFileSync('mail_notifications.json', JSON.stringify(notifications));"
 
       - name: Show mail notifications summary
         shell: bash
         run: |
-          node -e "
-            const fs = require('fs');
-            const data = JSON.parse(fs.readFileSync('mail_notifications.json', 'utf8'));
-            console.log({ notifications: Array.isArray(data) ? data.length : 0 });
-          "
+          node -e "const fs = require('fs');
+          const data = JSON.parse(fs.readFileSync('mail_notifications.json', 'utf8'));
+          console.log({ notifications: Array.isArray(data) ? data.length : 0 });"
 
       - name: Upload mail_notifications.json to Dropbox
         shell: bash
