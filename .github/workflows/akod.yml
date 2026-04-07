@@ -90,7 +90,7 @@ jobs:
             const normRef = (v) => String(v || '').replace(/[^0-9/]/g, '');
 
             for (const item of results) {
-              const key = `${normTank(item.tank)}__${normRef(item.ref)}`;
+              const key = normTank(item.tank) + '__' + normRef(item.ref);
 
               if (!seen.has(key)) {
                 seen.set(key, item);
