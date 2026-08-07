@@ -102,6 +102,40 @@ test('WebFormsClient logs in, reuses session cookie, and posts Authorise Service
   assert.equal(authorisePost.options.headers.Cookie, 'ASP.NET_SessionId=abc123');
 });
 
+test('not-ready popup is a waiting result, not a technical error', async () => {
+  const responses = [
+    fakeResponse(serviceHtml('service-vs', 'service-ev')),
+    fakeResponse(`
+      <div id="MainContent_PanelErrorMessage1">
+        <strong>Warning!</strong>
+        <span>Unit is not yet ready for pick-up - Authorisation code will be sent to above contact details when ready</span>
+        <button>OK</button>
+      </div>
+    `),
+  ];
+
+  const client = new WebFormsClient({
+    loginUrl: 'https://eservices.alvsborgroro.com/Login.aspx',
+    username: 'user1',
+    password: 'secret1',
+    fetchImpl: async () => {
+      const response = responses.shift();
+      if (!response) throw new Error('Unexpected fetch');
+      return response;
+    },
+    retries: 0,
+  });
+
+  const result = await client.authorise('DHBU3247450', '78724817');
+
+  assert.deepEqual(result, {
+    success: false,
+    status: 'Väntar',
+    aKod: null,
+    message: 'Unit is not yet ready for pick-up - Authorisation code will be sent to above contact details when ready',
+  });
+});
+
 function loginHtml(viewState, eventValidation) {
   return `
     <input name="__VIEWSTATE" value="${viewState}">
