@@ -19,19 +19,11 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx playwright install chromium
+      - name: Run tests
+        run: npm test
 
       - name: Get Dropbox access token
         id: dropbox-token
@@ -68,7 +60,6 @@ jobs:
           USERNAME: ${{ secrets.AKOD_USERNAME }}
           PASSWORD: ${{ secrets.AKOD_PASSWORD }}
           AKOD_LOGIN_URL: ${{ secrets.AKOD_LOGIN_URL }}
-          HEADLESS: "true"
           QUEUE_FILE: "./queue.json"
           RESULT_FILE: "./results.json"
         run: |
