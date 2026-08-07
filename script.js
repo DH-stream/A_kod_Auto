@@ -1,5 +1,4 @@
 const fs = require('fs');
-const { spawnSync } = require('child_process');
 const { WebFormsClient } = require('./lib/webforms-client');
 
 function cleanTank(input) {
@@ -79,23 +78,6 @@ async function runQueue({ rawQueue, client }) {
   return results;
 }
 
-function runGitHubLoginDiagnostic({ username, password, loginUrl }) {
-  if (process.env.GITHUB_ACTIONS !== 'true') return;
-  if (!fs.existsSync('./scripts/diagnose-login.sh')) return;
-
-  console.log('\n=== Tillfällig curl-diagnos av RoRo-login ===');
-  const result = spawnSync('bash', ['./scripts/diagnose-login.sh'], {
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      AKOD_USERNAME: username,
-      AKOD_PASSWORD: password,
-      AKOD_LOGIN_URL: loginUrl,
-    },
-  });
-  console.log(`diag_process_exit=${result.status ?? 'unknown'}`);
-}
-
 async function main() {
   const username = process.env.USERNAME;
   const password = process.env.PASSWORD;
@@ -103,8 +85,6 @@ async function main() {
 
   if (!username || !password) throw new Error('USERNAME eller PASSWORD saknas');
   if (!loginUrl) throw new Error('AKOD_LOGIN_URL saknas');
-
-  runGitHubLoginDiagnostic({ username, password, loginUrl });
 
   const rawQueue = loadQueue();
   const client = new WebFormsClient({
