@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   repository_dispatch:
     types: [run-akod]
+  push:
+    branches: [feat/http-akod-client]
 
 jobs:
   run-akod:
