@@ -230,7 +230,7 @@ jobs:
 
     steps:
       - name: Diagnose RoRo login with Windows PowerShell
-        shell: pwsh
+        shell: powershell
         env:
           AKOD_LOGIN_URL: ${{ secrets.AKOD_LOGIN_URL }}
           AKOD_USERNAME: ${{ secrets.AKOD_USERNAME }}
@@ -239,7 +239,6 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $loginUrl = $env:AKOD_LOGIN_URL
           $serviceUrl = [Uri]::new([Uri]$loginUrl, '/ServiceBooking.aspx').AbsoluteUri
-          $session = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
 
           function Get-HiddenValue {
               param([string]$Html, [string]$Name)
@@ -257,7 +256,13 @@ jobs:
               return ''
           }
 
-          $loginPage = Invoke-WebRequest -Uri $loginUrl -WebSession $session -MaximumRedirection 5 -Headers @{ 'User-Agent' = 'Mozilla/5.0' }
+          $loginPage = Invoke-WebRequest `
+              -Uri $loginUrl `
+              -UseBasicParsing `
+              -SessionVariable session `
+              -MaximumRedirection 5 `
+              -Headers @{ 'User-Agent' = 'Mozilla/5.0' }
+
           $viewState = Get-HiddenValue $loginPage.Content '__VIEWSTATE'
           $viewStateGenerator = Get-HiddenValue $loginPage.Content '__VIEWSTATEGENERATOR'
           $eventValidation = Get-HiddenValue $loginPage.Content '__EVENTVALIDATION'
@@ -278,29 +283,41 @@ jobs:
               'ctl00$MainContent$btnLogin' = 'Login'
           }
 
-          $loginResult = Invoke-WebRequest `
-              -Uri $loginUrl `
-              -Method Post `
-              -WebSession $session `
-              -Body $form `
-              -ContentType 'application/x-www-form-urlencoded' `
-              -MaximumRedirection 5 `
-              -SkipHttpErrorCheck `
-              -Headers @{
-                  'Origin' = ([Uri]$loginUrl).GetLeftPart([System.UriPartial]::Authority)
-                  'Referer' = $loginUrl
-                  'User-Agent' = 'Mozilla/5.0'
-              }
+          try {
+              $loginResult = Invoke-WebRequest `
+                  -Uri $loginUrl `
+                  -Method Post `
+                  -WebSession $session `
+                  -Body $form `
+                  -ContentType 'application/x-www-form-urlencoded' `
+                  -UseBasicParsing `
+                  -MaximumRedirection 5 `
+                  -Headers @{
+                      'Origin' = ([Uri]$loginUrl).GetLeftPart([System.UriPartial]::Authority)
+                      'Referer' = $loginUrl
+                      'User-Agent' = 'Mozilla/5.0'
+                  }
 
-          Write-Host "win_login_post_status=$($loginResult.StatusCode)"
-          Write-Host "win_login_post_has_login_form=$($loginResult.Content -match 'MainContent_txtUserName')"
-          Write-Host "win_login_post_has_welcome=$($loginResult.Content -match 'Welcome')"
+              Write-Host "win_login_post_status=$($loginResult.StatusCode)"
+              Write-Host "win_login_post_has_login_form=$($loginResult.Content -match 'MainContent_txtUserName')"
+              Write-Host "win_login_post_has_welcome=$($loginResult.Content -match 'Welcome')"
+          }
+          catch {
+              $status = $null
+              if ($_.Exception.Response) {
+                  try { $status = [int]$_.Exception.Response.StatusCode } catch {}
+              }
+              Write-Host "win_login_post_status=$status"
+              Write-Host "win_login_post_exception=$($_.Exception.GetType().FullName)"
+              Write-Host 'win_login_result=failure'
+              exit 1
+          }
 
           $servicePage = Invoke-WebRequest `
               -Uri $serviceUrl `
               -WebSession $session `
+              -UseBasicParsing `
               -MaximumRedirection 5 `
-              -SkipHttpErrorCheck `
               -Headers @{ 'User-Agent' = 'Mozilla/5.0' }
 
           Write-Host "win_service_get_status=$($servicePage.StatusCode)"
@@ -317,4 +334,5 @@ jobs:
           }
           else {
               Write-Host 'win_login_result=failure'
+              exit 1
           }
