@@ -50,9 +50,16 @@ jobs:
         if: github.event_name == 'pull_request'
         run: npm ci
 
-      - name: Run existing A-code tests
+      - name: Run existing A-code tests without exposing row data
         if: github.event_name == 'pull_request'
-        run: npm test
+        run: |
+          if npm test > /tmp/npm-test.log 2>&1; then
+            grep -E '^ℹ (tests|pass|fail|cancelled|skipped|todo|duration_ms)' /tmp/npm-test.log || true
+          else
+            grep -E '^ℹ (tests|pass|fail|cancelled|skipped|todo|duration_ms)' /tmp/npm-test.log || true
+            echo "Existing A-code regression tests failed; detailed output suppressed to avoid exposing row data."
+            exit 1
+          fi
 
       - name: Resolve and validate Dropbox input path
         if: github.event_name != 'pull_request'
