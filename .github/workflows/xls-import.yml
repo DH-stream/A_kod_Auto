@@ -4,11 +4,6 @@ on:
   repository_dispatch:
     types: [xls-import]
   workflow_dispatch:
-    inputs:
-      dropbox_file_id:
-        description: Dropbox file ID returned by Power Automate Create file
-        required: true
-        type: string
   pull_request:
     paths:
       - xls_import.py
@@ -61,26 +56,6 @@ jobs:
             exit 1
           fi
 
-      - name: Resolve and validate Dropbox file ID
-        if: github.event_name != 'pull_request'
-        env:
-          DISPATCH_FILE_ID: ${{ github.event.client_payload.dropbox_file_id }}
-          MANUAL_FILE_ID: ${{ inputs.dropbox_file_id }}
-        run: |
-          if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
-            DROPBOX_INPUT_FILE_ID="$DISPATCH_FILE_ID"
-          else
-            DROPBOX_INPUT_FILE_ID="$MANUAL_FILE_ID"
-          fi
-          export DROPBOX_INPUT_FILE_ID
-          python - <<'PY'
-          import os
-          from xls_import import validate_dropbox_file_id
-          validate_dropbox_file_id(os.environ["DROPBOX_INPUT_FILE_ID"])
-          PY
-          echo "::add-mask::$DROPBOX_INPUT_FILE_ID"
-          echo "DROPBOX_INPUT_FILE_ID=$DROPBOX_INPUT_FILE_ID" >> "$GITHUB_ENV"
-
       - name: Get Dropbox access token
         if: github.event_name != 'pull_request'
         id: dropbox-token
@@ -102,8 +77,9 @@ jobs:
         if: github.event_name != 'pull_request'
         env:
           ACCESS_TOKEN: ${{ steps.dropbox-token.outputs.access_token }}
+          DROPBOX_INPUT_PATH: "/import/IB480-DENGOT Traffic Sheets.xls"
         run: |
-          DROPBOX_API_ARG=$(python -c 'import json,os; print(json.dumps({"path": os.environ["DROPBOX_INPUT_FILE_ID"]}))')
+          DROPBOX_API_ARG=$(python -c 'import json,os; print(json.dumps({"path": os.environ["DROPBOX_INPUT_PATH"]}))')
           curl --silent --show-error --fail \
             -X POST https://content.dropboxapi.com/2/files/download \
             --header "Authorization: Bearer $ACCESS_TOKEN" \
@@ -125,7 +101,7 @@ jobs:
             -X POST https://api.dropboxapi.com/2/files/create_folder_v2 \
             --header "Authorization: Bearer $ACCESS_TOKEN" \
             --header "Content-Type: application/json" \
-            --data '{"path":"/akod/parsed","autorename":false}')
+            --data '{"path":"/parsed","autorename":false}')
           if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "409" ]; then
             echo "Dropbox parsed folder could not be prepared (HTTP $HTTP_CODE)."
             exit 1
@@ -136,7 +112,7 @@ jobs:
         env:
           ACCESS_TOKEN: ${{ steps.dropbox-token.outputs.access_token }}
         run: |
-          OUTPUT_PATH="/akod/parsed/xls-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          OUTPUT_PATH="/parsed/xls-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
           export OUTPUT_PATH
           DROPBOX_API_ARG=$(python -c 'import json,os; print(json.dumps({"path": os.environ["OUTPUT_PATH"], "mode": "overwrite", "autorename": False, "mute": True}))')
           curl --silent --show-error --fail \
