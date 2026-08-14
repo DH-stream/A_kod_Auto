@@ -124,6 +124,13 @@ class XlsImportTests(unittest.TestCase):
         self.assertNotIn("run: npm test\n", workflow)
         self.assertIn("npm test > /tmp/npm-test.log 2>&1", workflow)
 
+    def test_workflow_uses_dropbox_file_id_payload_instead_of_path(self):
+        workflow = Path(".github/workflows/xls-import.yml").read_text(encoding="utf-8")
+        self.assertIn("dropbox_file_id:", workflow)
+        self.assertIn("github.event.client_payload.dropbox_file_id", workflow)
+        self.assertIn("DROPBOX_INPUT_FILE_ID", workflow)
+        self.assertNotIn("github.event.client_payload.dropbox_path", workflow)
+
     def test_validate_dropbox_file_id_accepts_only_dropbox_file_ids(self):
         self.assertEqual(
             validate_dropbox_file_id("id:AbCd-_12"),
