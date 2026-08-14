@@ -9,6 +9,7 @@ from xls_import import (
     cell_text,
     extract_delivery_rows,
     parse_workbook,
+    validate_dropbox_file_id,
     validate_dropbox_path,
 )
 
@@ -122,6 +123,33 @@ class XlsImportTests(unittest.TestCase):
         workflow = Path(".github/workflows/xls-import.yml").read_text(encoding="utf-8")
         self.assertNotIn("run: npm test\n", workflow)
         self.assertIn("npm test > /tmp/npm-test.log 2>&1", workflow)
+
+    def test_workflow_uses_dropbox_file_id_payload_instead_of_path(self):
+        workflow = Path(".github/workflows/xls-import.yml").read_text(encoding="utf-8")
+        self.assertIn("dropbox_file_id:", workflow)
+        self.assertIn("github.event.client_payload.dropbox_file_id", workflow)
+        self.assertIn("DROPBOX_INPUT_FILE_ID", workflow)
+        self.assertNotIn("github.event.client_payload.dropbox_path", workflow)
+
+    def test_validate_dropbox_file_id_accepts_only_dropbox_file_ids(self):
+        self.assertEqual(
+            validate_dropbox_file_id("id:AbCd-_12"),
+            "id:AbCd-_12",
+        )
+
+    def test_validate_dropbox_file_id_rejects_paths_and_malformed_values(self):
+        rejected = [
+            "",
+            "/akod/import/traffic.xls",
+            "AbCd-_12",
+            "id:",
+            "id:has spaces",
+            "id:abc/def",
+        ]
+        for value in rejected:
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    validate_dropbox_file_id(value)
 
     def test_validate_dropbox_path_accepts_only_legacy_xls_in_import_folder(self):
         self.assertEqual(
