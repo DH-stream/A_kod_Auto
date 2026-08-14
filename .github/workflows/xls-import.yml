@@ -5,8 +5,8 @@ on:
     types: [xls-import]
   workflow_dispatch:
     inputs:
-      dropbox_path:
-        description: Dropbox path below /akod/import/
+      dropbox_file_id:
+        description: Dropbox file ID returned by Power Automate Create file
         required: true
         type: string
   pull_request:
@@ -61,24 +61,25 @@ jobs:
             exit 1
           fi
 
-      - name: Resolve and validate Dropbox input path
+      - name: Resolve and validate Dropbox file ID
         if: github.event_name != 'pull_request'
         env:
-          DISPATCH_PATH: ${{ github.event.client_payload.dropbox_path }}
-          MANUAL_PATH: ${{ inputs.dropbox_path }}
+          DISPATCH_FILE_ID: ${{ github.event.client_payload.dropbox_file_id }}
+          MANUAL_FILE_ID: ${{ inputs.dropbox_file_id }}
         run: |
           if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
-            DROPBOX_INPUT_PATH="$DISPATCH_PATH"
+            DROPBOX_INPUT_FILE_ID="$DISPATCH_FILE_ID"
           else
-            DROPBOX_INPUT_PATH="$MANUAL_PATH"
+            DROPBOX_INPUT_FILE_ID="$MANUAL_FILE_ID"
           fi
-          export DROPBOX_INPUT_PATH
+          export DROPBOX_INPUT_FILE_ID
           python - <<'PY'
           import os
-          from xls_import import validate_dropbox_path
-          validate_dropbox_path(os.environ["DROPBOX_INPUT_PATH"])
+          from xls_import import validate_dropbox_file_id
+          validate_dropbox_file_id(os.environ["DROPBOX_INPUT_FILE_ID"])
           PY
-          echo "DROPBOX_INPUT_PATH=$DROPBOX_INPUT_PATH" >> "$GITHUB_ENV"
+          echo "::add-mask::$DROPBOX_INPUT_FILE_ID"
+          echo "DROPBOX_INPUT_FILE_ID=$DROPBOX_INPUT_FILE_ID" >> "$GITHUB_ENV"
 
       - name: Get Dropbox access token
         if: github.event_name != 'pull_request'
@@ -102,7 +103,7 @@ jobs:
         env:
           ACCESS_TOKEN: ${{ steps.dropbox-token.outputs.access_token }}
         run: |
-          DROPBOX_API_ARG=$(python -c 'import json,os; print(json.dumps({"path": os.environ["DROPBOX_INPUT_PATH"]}))')
+          DROPBOX_API_ARG=$(python -c 'import json,os; print(json.dumps({"path": os.environ["DROPBOX_INPUT_FILE_ID"]}))')
           curl --silent --show-error --fail \
             -X POST https://content.dropboxapi.com/2/files/download \
             --header "Authorization: Bearer $ACCESS_TOKEN" \
