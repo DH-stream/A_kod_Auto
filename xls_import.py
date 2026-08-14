@@ -7,6 +7,7 @@ from pathlib import Path
 
 TANK_RE = re.compile(r"^[A-Z]{4}[0-9]{6}/[0-9]$")
 REF_RE = re.compile(r"^7[0-9]{7}(?:/[0-9])?$")
+DROPBOX_FILE_ID_RE = re.compile(r"^id:[A-Za-z0-9_-]+$")
 DELIVERY_SECTION = "delivery details for dengot"
 SHUNT_SECTION = "shunt details for dengot"
 CONTAINER_HEADER = "container no"
@@ -109,6 +110,12 @@ def parse_workbook(path):
                 continue
             raise
     raise ParseError("delivery section not found")
+
+
+def validate_dropbox_file_id(file_id):
+    if not isinstance(file_id, str) or not DROPBOX_FILE_ID_RE.fullmatch(file_id):
+        raise ValueError("invalid Dropbox file ID")
+    return file_id
 
 
 def validate_dropbox_path(path):
