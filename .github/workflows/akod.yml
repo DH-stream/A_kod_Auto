@@ -96,11 +96,10 @@ jobs:
           QUEUE_FILE: "./queue.json"
           RESULT_FILE: "./results.json"
           FAILURE_TRACKER_FILE: "./failure_tracker.json"
-          RUN_DATE: ${{ github.run_started_at }}
         run: |
           set +e
 
-          RUN_DATE="${RUN_DATE%%T*}"
+          RUN_DATE=$(date -u +%F)
           export RUN_DATE
 
           max_attempts=3
