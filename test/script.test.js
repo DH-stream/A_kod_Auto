@@ -105,3 +105,148 @@ test('global login failure aborts before processing rows', async () => {
   );
   assert.equal(authoriseCalls, 0);
 });
+
+const OBJECT_REFERENCE_ERROR = 'Object reference not set to an instance of an object';
+
+function objectReferenceOutcome() {
+  return {
+    success: false,
+    status: 'Tekniskt fel',
+    aKod: null,
+    message: OBJECT_REFERENCE_ERROR,
+  };
+}
+
+test('counts the object-reference failure at most once per calendar day', async () => {
+  const failureTracker = {};
+  const client = {
+    async login() {},
+    async authorise() {
+      return objectReferenceOutcome();
+    },
+  };
+  const rawQueue = [{ id: 66, tank: 'DHDU235511/7', ref: '75487440/9' }];
+
+  await runQueue({ rawQueue, client, failureTracker, today: '2026-08-14' });
+  await runQueue({ rawQueue, client, failureTracker, today: '2026-08-14' });
+
+  assert.deepEqual(failureTracker['DHDU2355117__75487440/9']?.dates, ['2026-08-14']);
+});
+
+test('marks a combination Skipped on its third distinct object-reference failure day', async () => {
+  const failureTracker = {
+    'DHDU2355117__75487440/9': {
+      error: OBJECT_REFERENCE_ERROR,
+      dates: ['2026-08-12', '2026-08-13'],
+      skipped: false,
+    },
+  };
+  const client = {
+    async login() {},
+    async authorise() {
+      return objectReferenceOutcome();
+    },
+  };
+
+  const results = await runQueue({
+    rawQueue: [{ id: 66, tank: 'DHDU235511/7', ref: '75487440/9' }],
+    client,
+    failureTracker,
+    today: '2026-08-14',
+  });
+
+  assert.equal(results[0].status, 'Skipped');
+  assert.equal(results[0].message, `${OBJECT_REFERENCE_ERROR} - skipped after 3 days`);
+  assert.equal(failureTracker['DHDU2355117__75487440/9'].skipped, true);
+  assert.deepEqual(failureTracker['DHDU2355117__75487440/9'].dates, [
+    '2026-08-12',
+    '2026-08-13',
+    '2026-08-14',
+  ]);
+});
+
+test('already skipped combinations bypass RoRo authorise', async () => {
+  let authoriseCalls = 0;
+  const failureTracker = {
+    'DHDU2355117__75487440/9': {
+      error: OBJECT_REFERENCE_ERROR,
+      dates: ['2026-08-12', '2026-08-13', '2026-08-14'],
+      skipped: true,
+    },
+  };
+  const client = {
+    async login() {},
+    async authorise() {
+      authoriseCalls++;
+      return objectReferenceOutcome();
+    },
+  };
+
+  const results = await runQueue({
+    rawQueue: [{ id: 66, tank: 'DHDU235511/7', ref: '75487440/9' }],
+    client,
+    failureTracker,
+    today: '2026-08-15',
+  });
+
+  assert.equal(authoriseCalls, 0);
+  assert.equal(results[0].status, 'Skipped');
+});
+
+test('a new ref for the same tank starts a separate failure history', async () => {
+  const failureTracker = {
+    'DHDU2355117__75487440/9': {
+      error: OBJECT_REFERENCE_ERROR,
+      dates: ['2026-08-12', '2026-08-13'],
+      skipped: false,
+    },
+  };
+  const client = {
+    async login() {},
+    async authorise() {
+      return objectReferenceOutcome();
+    },
+  };
+
+  const results = await runQueue({
+    rawQueue: [{ id: 99, tank: 'DHDU235511/7', ref: '75445501/1' }],
+    client,
+    failureTracker,
+    today: '2026-08-14',
+  });
+
+  assert.equal(results[0].status, 'Tekniskt fel');
+  assert.deepEqual(failureTracker['DHDU2355117__75445501/1'].dates, ['2026-08-14']);
+  assert.deepEqual(failureTracker['DHDU2355117__75487440/9'].dates, ['2026-08-12', '2026-08-13']);
+});
+
+test('a non-matching outcome clears failure history for that tank and ref', async () => {
+  const failureTracker = {
+    'DHDU2355117__75487440/9': {
+      error: OBJECT_REFERENCE_ERROR,
+      dates: ['2026-08-12', '2026-08-13'],
+      skipped: false,
+    },
+  };
+  const client = {
+    async login() {},
+    async authorise() {
+      return {
+        success: false,
+        status: 'Väntar',
+        aKod: null,
+        message: 'Unit is not yet ready for pick-up',
+      };
+    },
+  };
+
+  const results = await runQueue({
+    rawQueue: [{ id: 66, tank: 'DHDU235511/7', ref: '75487440/9' }],
+    client,
+    failureTracker,
+    today: '2026-08-14',
+  });
+
+  assert.equal(results[0].status, 'Väntar');
+  assert.equal(failureTracker['DHDU2355117__75487440/9'], undefined);
+});
