@@ -1,5 +1,6 @@
 import sys
 import types
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -116,6 +117,11 @@ class XlsImportTests(unittest.TestCase):
 
         self.assertEqual(records, [{"tank": "ABCD123456/7", "ref": "71234567"}])
         self.assertEqual(stats["parsed"], 1)
+
+    def test_workflow_suppresses_existing_node_test_output(self):
+        workflow = Path(".github/workflows/xls-import.yml").read_text(encoding="utf-8")
+        self.assertNotIn("run: npm test\n", workflow)
+        self.assertIn("npm test > /tmp/npm-test.log 2>&1", workflow)
 
     def test_validate_dropbox_path_accepts_only_legacy_xls_in_import_folder(self):
         self.assertEqual(
