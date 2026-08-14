@@ -48,6 +48,38 @@ jobs:
             --header "Dropbox-API-Arg: {\"path\":\"${DROPBOX_QUEUE_PATH}\"}" \
             -o queue.json
 
+      - name: Download failure tracker from Dropbox
+        id: failure-tracker
+        shell: bash
+        env:
+          DROPBOX_QUEUE_PATH: ${{ secrets.DROPBOX_QUEUE_PATH }}
+        run: |
+          QUEUE_DIR=$(dirname "$DROPBOX_QUEUE_PATH")
+          if [ "$QUEUE_DIR" = "." ] || [ "$QUEUE_DIR" = "/" ]; then
+            TRACKER_PATH="/failure_tracker.json"
+          else
+            TRACKER_PATH="${QUEUE_DIR}/failure_tracker.json"
+          fi
+
+          echo "path=$TRACKER_PATH" >> "$GITHUB_OUTPUT"
+
+          HTTP_CODE=$(curl -sS -w "%{http_code}" -X POST https://content.dropboxapi.com/2/files/download \
+            --header "Authorization: Bearer ${{ steps.dropbox-token.outputs.access_token }}" \
+            --header "Dropbox-API-Arg: {\"path\":\"${TRACKER_PATH}\"}" \
+            -o failure_tracker.download)
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            mv failure_tracker.download failure_tracker.json
+            if ! node -e "JSON.parse(require('fs').readFileSync('failure_tracker.json','utf8'))"; then
+              echo "::warning::Ogiltig failure_tracker.json. Startar med tom tracker utan att stoppa A-kodskörningen."
+              printf '{}\n' > failure_tracker.json
+            fi
+          else
+            rm -f failure_tracker.download
+            printf '{}\n' > failure_tracker.json
+            echo "::warning::Failure tracker kunde inte hämtas (HTTP $HTTP_CODE). Startar tomt utan att stoppa A-kodskörningen."
+          fi
+
       - name: Show queue
         run: cat queue.json
 
@@ -62,8 +94,12 @@ jobs:
           AKOD_LOGIN_URL: ${{ secrets.AKOD_LOGIN_URL }}
           QUEUE_FILE: "./queue.json"
           RESULT_FILE: "./results.json"
+          FAILURE_TRACKER_FILE: "./failure_tracker.json"
         run: |
           set +e
+
+          RUN_DATE=$(date -u +%F)
+          export RUN_DATE
 
           max_attempts=3
           attempt=1
@@ -95,6 +131,19 @@ jobs:
 
       - name: Show results
         run: cat results.json
+
+      - name: Upload failure tracker to Dropbox
+        shell: bash
+        env:
+          DROPBOX_TRACKER_PATH: ${{ steps.failure-tracker.outputs.path }}
+        run: |
+          if ! curl --fail-with-body -sS -X POST https://content.dropboxapi.com/2/files/upload \
+            --header "Authorization: Bearer ${{ steps.dropbox-token.outputs.access_token }}" \
+            --header "Dropbox-API-Arg: {\"autorename\":false,\"mode\":\"overwrite\",\"mute\":true,\"path\":\"${DROPBOX_TRACKER_PATH}\",\"strict_conflict\":false}" \
+            --header "Content-Type: application/octet-stream" \
+            --data-binary @failure_tracker.json; then
+            echo "::warning::Kunde inte spara failure_tracker.json. A-kodflödet fortsätter oförändrat."
+          fi
 
       - name: Detect duplicates and build sync-ready file
         shell: bash
@@ -223,3 +272,4 @@ jobs:
             duplicates.json
             sync_response.json
             mail_notifications.json
+            failure_tracker.json
