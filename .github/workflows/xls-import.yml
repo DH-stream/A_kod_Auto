@@ -1,0 +1,141 @@
+name: Legacy XLS import
+
+on:
+  repository_dispatch:
+    types: [xls-import]
+  workflow_dispatch:
+    inputs:
+      dropbox_path:
+        description: Dropbox path below /akod/import/
+        required: true
+        type: string
+  pull_request:
+    paths:
+      - xls_import.py
+      - requirements-xls.txt
+      - test/test_xls_import.py
+      - .github/workflows/xls-import.yml
+
+jobs:
+  xls-import:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-xls.txt
+
+      - name: Install XLS dependency
+        run: pip install -r requirements-xls.txt
+
+      - name: Run XLS parser tests
+        run: python -m unittest discover -s test -p 'test_xls_import.py' -v
+
+      - name: Setup Node for A-code regression tests
+        if: github.event_name == 'pull_request'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install Node dependencies for regression tests
+        if: github.event_name == 'pull_request'
+        run: npm ci
+
+      - name: Run existing A-code tests
+        if: github.event_name == 'pull_request'
+        run: npm test
+
+      - name: Resolve and validate Dropbox input path
+        if: github.event_name != 'pull_request'
+        env:
+          DISPATCH_PATH: ${{ github.event.client_payload.dropbox_path }}
+          MANUAL_PATH: ${{ inputs.dropbox_path }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "repository_dispatch" ]; then
+            DROPBOX_INPUT_PATH="$DISPATCH_PATH"
+          else
+            DROPBOX_INPUT_PATH="$MANUAL_PATH"
+          fi
+          export DROPBOX_INPUT_PATH
+          python - <<'PY'
+          import os
+          from xls_import import validate_dropbox_path
+          validate_dropbox_path(os.environ["DROPBOX_INPUT_PATH"])
+          PY
+          echo "DROPBOX_INPUT_PATH=$DROPBOX_INPUT_PATH" >> "$GITHUB_ENV"
+
+      - name: Get Dropbox access token
+        if: github.event_name != 'pull_request'
+        id: dropbox-token
+        env:
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+        run: |
+          RESPONSE=$(curl --silent --show-error --fail https://api.dropbox.com/oauth2/token \
+            -d grant_type=refresh_token \
+            -d refresh_token="$DROPBOX_REFRESH_TOKEN" \
+            -d client_id="$DROPBOX_APP_KEY" \
+            -d client_secret="$DROPBOX_APP_SECRET")
+          ACCESS_TOKEN=$(printf '%s' "$RESPONSE" | python -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
+          echo "::add-mask::$ACCESS_TOKEN"
+          echo "access_token=$ACCESS_TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Download legacy XLS from Dropbox
+        if: github.event_name != 'pull_request'
+        env:
+          ACCESS_TOKEN: ${{ steps.dropbox-token.outputs.access_token }}
+        run: |
+          DROPBOX_API_ARG=$(python -c 'import json,os; print(json.dumps({"path": os.environ["DROPBOX_INPUT_PATH"]}))')
+          curl --silent --show-error --fail \
+            -X POST https://content.dropboxapi.com/2/files/download \
+            --header "Authorization: Bearer $ACCESS_TOKEN" \
+            --header "Dropbox-API-Arg: $DROPBOX_API_ARG" \
+            --output input.xls
+
+      - name: Parse legacy XLS
+        if: github.event_name != 'pull_request'
+        run: python xls_import.py --input input.xls --output parsed.json
+
+      - name: Ensure parsed Dropbox folder exists
+        if: github.event_name != 'pull_request'
+        env:
+          ACCESS_TOKEN: ${{ steps.dropbox-token.outputs.access_token }}
+        run: |
+          HTTP_CODE=$(curl --silent --show-error \
+            --output /tmp/create-folder-response.json \
+            --write-out '%{http_code}' \
+            -X POST https://api.dropboxapi.com/2/files/create_folder_v2 \
+            --header "Authorization: Bearer $ACCESS_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data '{"path":"/akod/parsed","autorename":false}')
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "409" ]; then
+            echo "Dropbox parsed folder could not be prepared (HTTP $HTTP_CODE)."
+            exit 1
+          fi
+
+      - name: Upload parsed JSON to Dropbox
+        if: github.event_name != 'pull_request'
+        env:
+          ACCESS_TOKEN: ${{ steps.dropbox-token.outputs.access_token }}
+        run: |
+          OUTPUT_PATH="/akod/parsed/xls-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          export OUTPUT_PATH
+          DROPBOX_API_ARG=$(python -c 'import json,os; print(json.dumps({"path": os.environ["OUTPUT_PATH"], "mode": "overwrite", "autorename": False, "mute": True}))')
+          curl --silent --show-error --fail \
+            -X POST https://content.dropboxapi.com/2/files/upload \
+            --header "Authorization: Bearer $ACCESS_TOKEN" \
+            --header "Dropbox-API-Arg: $DROPBOX_API_ARG" \
+            --header "Content-Type: application/octet-stream" \
+            --data-binary @parsed.json \
+            --output /tmp/upload-response.json
+          echo "Parsed XLS output uploaded successfully."
