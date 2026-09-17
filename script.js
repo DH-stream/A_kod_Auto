@@ -53,6 +53,13 @@ function makeResult(item, overrides = {}) {
   };
 }
 
+function githubErrorMessage(message) {
+  return String(message || 'Okänt fel')
+    .replace(/%/g, '%25')
+    .replace(/\r/g, '%0D')
+    .replace(/\n/g, '%0A');
+}
+
 async function runQueue({ rawQueue, client, failureTracker = {}, today = runDate() }) {
   if (!Array.isArray(rawQueue) || rawQueue.length === 0) {
     throw new Error('Kön är tom eller ogiltig');
@@ -178,7 +185,9 @@ async function main() {
 
 if (require.main === module) {
   main().catch((error) => {
-    console.error('ERROR:', error?.message || error);
+    const message = String(error?.message || error);
+    console.error(`::error title=A-kod automation::${githubErrorMessage(message)}`);
+    console.error('ERROR:', message);
     process.exitCode = 1;
   });
 }
