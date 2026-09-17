@@ -107,8 +107,8 @@ test('login failure clearly points to updating the GitHub password', async () =>
     fakeResponse(loginHtml('login-vs', 'login-ev'), {
       'set-cookie': ['ASP.NET_SessionId=abc123; path=/; HttpOnly'],
     }),
-    fakeResponse('<html>still on login page</html>'),
-    fakeResponse(loginHtml('login-vs-2', 'login-ev-2')),
+    fakeResponse(loginHtml('failed-login-vs', 'failed-login-ev')),
+    fakeResponse(loginHtml('unused-login-vs', 'unused-login-ev')),
   ];
 
   const client = new WebFormsClient({
