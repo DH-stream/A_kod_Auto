@@ -102,6 +102,39 @@ test('WebFormsClient logs in, reuses session cookie, and posts Authorise Service
   assert.equal(authorisePost.options.headers.Cookie, 'ASP.NET_SessionId=abc123');
 });
 
+test('login failure clearly points to updating the GitHub password', async () => {
+  const responses = [
+    fakeResponse(loginHtml('login-vs', 'login-ev'), {
+      'set-cookie': ['ASP.NET_SessionId=abc123; path=/; HttpOnly'],
+    }),
+    fakeResponse(loginHtml('failed-login-vs', 'failed-login-ev')),
+    fakeResponse(loginHtml('unused-login-vs', 'unused-login-ev')),
+  ];
+
+  const client = new WebFormsClient({
+    loginUrl: 'https://eservices.alvsborgroro.com/Login.aspx',
+    username: 'user1',
+    password: 'secret1',
+    fetchImpl: async () => {
+      const response = responses.shift();
+      if (!response) throw new Error('Unexpected fetch');
+      return response;
+    },
+    retries: 0,
+  });
+
+  await assert.rejects(
+    () => client.login(),
+    (error) => {
+      assert.match(error.message, /A-kod-inloggning misslyckades/);
+      assert.match(error.message, /Uppdatera lösenordet i GitHub Secrets/);
+      assert.match(error.message, /AKOD_PASSWORD/);
+      assert.doesNotMatch(error.message, /secret1/);
+      return true;
+    }
+  );
+});
+
 test('not-ready popup is a waiting result, not a technical error', async () => {
   const responses = [
     fakeResponse(serviceHtml('service-vs', 'service-ev')),
