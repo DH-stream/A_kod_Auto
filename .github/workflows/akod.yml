@@ -95,8 +95,6 @@ jobs:
           QUEUE_FILE: "./queue.json"
           RESULT_FILE: "./results.json"
           FAILURE_TRACKER_FILE: "./failure_tracker.json"
-          AKOD_DEBUG_DIR: "./debug"
-          NODE_OPTIONS: "--require=./lib/debug-fetch.js"
         run: |
           set +e
 
@@ -130,15 +128,6 @@ jobs:
             echo "Alla försök misslyckades"
             exit $exit_code
           fi
-
-      - name: Upload ServiceBooking debug artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: servicebooking-debug
-          path: debug/
-          if-no-files-found: ignore
-          retention-days: 3
 
       - name: Show results
         run: cat results.json
